@@ -14,7 +14,7 @@
 
 </div>
 
-## Objetivo 
+## 📌 Objetivo 
 
 Armar un escenario de ataque controlado contra una app vulnerable a propósito (Bank App) para ver cómo Wazuh detecta, registra y alertá cada movimiento. Me pongo en el lugar del SOC y trabajo el ciclo completo: desde que se genera el evento hasta que lo escalo.
 
