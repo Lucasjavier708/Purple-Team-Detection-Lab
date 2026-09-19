@@ -3,6 +3,8 @@
 
 # 🛡️ Docker Intrusion & SOC Response: API, MariaDB and Lateral Movement
 
+### API exploitation – Compromised credentials – Attack detection
+
 **`Wazuh`** `·` **`Kali Linux`** `·` **`Docker`** `·` **`Mittre At&ck`**
 
 ---
