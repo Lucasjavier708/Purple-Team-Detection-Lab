@@ -1,5 +1,17 @@
 
+<div align="center">
+
 # 🛡️ Docker Intrusion & SOC Response: API, MariaDB and Lateral Movement
+
+**`Wazuh`** `·` **`Kali Linux`** `·` **`Docker`** `·` **`Mittre At&ck`**
+
+---
+
+🔴 **Ataque** &nbsp;→&nbsp; 🔵 **Detección** &nbsp;→&nbsp; 🟢 **Respuesta**
+
+</div>
+
+
 
 ## Objetivo
 
