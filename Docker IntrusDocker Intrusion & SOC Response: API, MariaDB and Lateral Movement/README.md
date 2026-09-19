@@ -13,7 +13,7 @@
 
 
 
-## Objetivo
+## 📌 Objetivo
 
 El objetivo de este caso es analizar y responder ante una intrusión de múltiples etapas dentro de una infraestructura basada en Docker, desde la perspectiva de Ataque-Detecion-Respuesta
 
