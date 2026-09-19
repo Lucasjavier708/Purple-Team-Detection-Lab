@@ -77,12 +77,15 @@ Vista de la infraestructura **HomeLab/SOC** con los agentes **Wazuh** desplegado
 ![Metasploit](https://img.shields.io/badge/Metasploit-Framework-2D2D2D?style=flat-square&logo=metasploit)
 ![Hydra](https://img.shields.io/badge/Hydra-Brute_Force-FF6B6B?style=flat-square)
 ![Burp Suite](https://img.shields.io/badge/Burp_Suite-Testing-FF6633?style=flat-square)
+![John](https://img.shields.io/badge/John%20the%20Ripper-Credential%20Cracking-FFD700?style=flat-square&logoColor=black) 
+![Hashcat](https://img.shields.io/badge/Hashcat-Credential%20Cracking-FFD700?style=flat-square&logoColor=black)
 
 ### 💻 Desarrollo
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python)
 ![Bash](https://img.shields.io/badge/Bash-5.0-4EAA25?style=flat-square&logo=gnubash)
 ![PowerShell](https://img.shields.io/badge/PowerShell-7.0-5391FE?style=flat-square&logo=powershell)
 ![Node.js](https://img.shields.io/badge/Node.js-18.x-339933?style=flat-square&logo=node.js)
+
 
 ### ☁️ Infraestructura
 ![Docker](https://img.shields.io/badge/Docker-Latest-2496ED?style=flat-square&logo=docker)
