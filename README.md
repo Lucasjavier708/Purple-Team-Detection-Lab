@@ -20,7 +20,7 @@ Los siguientes escenarios forman parte del laboratorio y serán ampliados progre
 | Caso | Escenario | Principales técnicas | Estado |
 |------|-----------|----------------------|--------|
 | **Caso 01** | [Orchestrated Attack Framework: Multi-Stage Brute Force & SQLi with Real-Time SIEM Detection](./casos/caso-1) | SQL Injection · Brute Force · SIEM Detection | 🟢 Completado |
-| **Caso 02** | Próximamente | — | 🟡 En desarrollo |
+| **Caso 02** |  [Docker Intrusion & SOC Response: API, MariaDB and Lateral Movement](./Docker%20Intrusion%20%26%20SOC%20Response:%20API,%20MariaDB%20and%20Lateral%20Movement)  |  Docker · API · MariaDB · Lateral Movement · SOC Detectcion  | 🟡 En desarrollo |
 | |  | |  |
 
 
