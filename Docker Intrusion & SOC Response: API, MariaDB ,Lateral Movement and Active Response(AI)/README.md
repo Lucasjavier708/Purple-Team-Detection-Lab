@@ -63,3 +63,7 @@ El laboratorio SOC cuenta con dos redes segmentadas, separando el entorno de ata
  ![John](https://img.shields.io/badge/John%20the%20Ripper-Credential%20Cracking-FFD700?style=flat-square&logoColor=black)
 
  ![Hashcat](https://img.shields.io/badge/Hashcat-Credential%20Cracking-FFD700?style=flat-square&logoColor=black)
+
+
+  ## :small_red_triangle_down: Escenario Red de Laboratorio (Escenario de Attaque)
+
