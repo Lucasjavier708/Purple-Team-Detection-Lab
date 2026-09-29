@@ -367,10 +367,45 @@ curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/
 - fin_user — FinanceLab-2026-06
 
 *****
-Esta fase permitió ampliar el acceso inicial obtenido sobre la infraestructura, pasando de un acceso al servicio MariaDB a disponer de información interna de la organización. La base de datos expuso información sobre sistemas, usuarios y credenciales almacenadas, permitiendo identificar relaciones entre los datos y los distintos endpoints del laboratorio.
+*Esta fase permitió ampliar el acceso inicial obtenido sobre la infraestructura, pasando de un acceso al servicio MariaDB a disponer de información interna de la organización. La base de datos expuso información sobre sistemas, usuarios y credenciales almacenadas, permitiendo identificar relaciones entre los datos y los distintos endpoints del laboratorio.*
 
-Como resultado, se obtuvo una credencial asociada a un usuario con presencia en otro endpoint de la red, proporcionando información de autenticación que amplía el alcance del acceso conseguido y permite validar hasta dónde puede extenderse el compromiso dentro de la infraestructura.
+*Como resultado, se obtuvo una credencial asociada a un usuario con presencia en otro endpoint de la red, proporcionando información de autenticación que amplía el alcance del acceso conseguido y permite validar hasta dónde puede extenderse el compromiso dentro de la infraestructura.*
 
 
 *****
 
+
+##  Lateral Movement & Windows Access
+
+Con la información obtenida en la operacion hacia Mariadb  —el endpoint windows-srv en 192.168.3.10:3389 y una credencial asociada a administrador— tengo ahora un objetivo concreto dentro de la infraestructura. En esta fase intento moverme lateralmente desde el entorno comprometido hacia Windows Server, aprovechando el servicio RDP que ya había identificado como abierto en el escaneo inicial. 
+
+### ⏹️ [3.1] — Fuerza bruta contra RDP
+
+Con el usuario administrador como objetivo conocido, intento autenticarme contra el servicio RDP de Windows Server mediante un ataque de fuerza bruta mediante diccionario, buscando validar si la contraseña es alcanzable. 
+
+```bash
+hydra -l Administrador -P midiccionario.txt rdp://192.168.3.10 -t 1 -V
+```
+
+<div>
+
+<img width="1004" height="100" alt="fb-1" src="https://github.com/user-attachments/assets/a1bc0b8a-aa84-4e34-9fa9-3fcfd7c43f7f" />
+
+</div>
+<img width="1004" height="308" alt="fb-2" src="https://github.com/user-attachments/assets/4d98b488-9d8d-4ad8-898b-b782722ba755" />
+
+<div>
+  
+</div>
+
+
+
+******
+📈  *El objetivo de esta sección fue demostrar cómo una única superficie expuesta puede convertirse en el punto de partida de un compromiso progresivo. Partí sin conocer la infraestructura detrás de la API y fui avanzando paso a paso: logré ejecución de comandos, reconocí la red interna, descubrí MariaDB, enumeré usuarios, extraje y crackeé credenciales, y finalmente identifiqué un nuevo objetivo dentro de la infraestructura hacia donde moverme lateralmente.*
+
+*Lo importante no es solo que cada técnica funcionó, sino que ningún paso fue aislado — cada hallazgo alimentó el siguiente. Una API sin validación de entrada terminó exponiendo credenciales de Windows Server.*
+
+*En la siguiente sección analizo esta misma cadena desde el lado defensivo: qué detectó Wazuh, qué reglas se dispararon y cómo respondió el sistema de forma automática ante el ataque*
+
+
+******
