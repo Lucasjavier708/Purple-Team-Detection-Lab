@@ -523,6 +523,8 @@ A partir de la continuidad de la actividad detectada, se generaron nuevas alerta
 
 ---------------------
 <br>
+
+## Informe 
 Las tres alertas se validan como actividad maliciosa, no como falso positivo. El endpoint /check-host solo debería recibir un host para hacer un ping, y en ese campo llegan comandos del sistema que además se ejecutaron. Ningún uso normal de la aplicación produce eso.
 
 Las alertas siguen una progresión lógica (ejecución, reconocimiento de la red, apunte a otro host interno), propia de un ataque en preparación. 
@@ -539,5 +541,11 @@ Las alertas siguen una progresión lógica (ejecución, reconocimiento de la red
  La conclusion sobre este escenario es  actividad maliciosa confirmada ,no se trata de un falso positivo  y se procede a documentar y escalar al L2 
 
  
+---------------------
 
- 
+
+# Ticket / Escalacion 
+ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+|                                                                             | 
+|   -----------------------------------------------------------------------   |                              
+|_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|
