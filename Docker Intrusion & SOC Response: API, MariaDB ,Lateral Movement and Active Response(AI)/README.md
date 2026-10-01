@@ -541,11 +541,33 @@ Las alertas siguen una progresión lógica (ejecución, reconocimiento de la red
  La conclusion sobre este escenario es  actividad maliciosa confirmada ,no se trata de un falso positivo  y se procede a documentar y escalar al L2 
 
  
----------------------
+
 
 
 # Ticket / Escalacion 
- _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-|                                                                             | 
-|   -----------------------------------------------------------------------   |                              
-|_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|
+
+                                                                            
+-  [🎫 Tickets - Command Injection en /check-host con reconocimiento de red interna (Ubunt-Serv-Agent) ](https://github.com/Lucasjavier708/Purple-Team-Detection-Lab/blob/main/Docker%20Intrusion%20%26%20SOC%20Response%3A%20API%2C%20MariaDB%20%2CLateral%20Movement%20and%20Active%20Response(AI)/TICKETS.md)                 
+
+----
+
+<br>
+
+Seguido a los intentos de Command Injection detectados anteriormente, y como continuación de la cadena de actividad observada, se identificaron nuevas alertas indicando que el atacante comenzó a utilizar el acceso obtenido sobre la API para explorar y pivotar hacia servicios internos. Las alertas generadas evidencian una progresión desde el reconocimiento de red hacia el acceso directo a una base de datos MariaDB ubicada en la red interna de contenedores Docker (172.18.0.0/16), confirmando que el compromiso inicial sobre la API fue utilizado como vector de movimiento hacia otros recursos de la infraestructura. 
+
+<br> 
+
+<div>
+  <img width="2557" height="890" alt="discovery nuevo 402-404" src="https://github.com/user-attachments/assets/8883dfce-1eca-4b71-81f2-0658341cee66" />
+
+</div>
+<div> 
+
+<img width="2556" height="912" alt="discovery nuevo 405" src="https://github.com/user-attachments/assets/c2a69846-bd07-49cd-bfe1-130efe07db1c" />
+
+</div>
+<div>
+ <img width="2558" height="908" alt="discovery nuevo 406" src="https://github.com/user-attachments/assets/a7b14036-4ed1-48bb-a772-7a4ebfe4f7eb" />
+
+</div>
+
