@@ -65,7 +65,7 @@ El laboratorio SOC cuenta con dos redes segmentadas, separando el entorno de ata
  ![Hashcat](https://img.shields.io/badge/Hashcat-Credential%20Cracking-FFD700?style=flat-square&logoColor=black)
 
 
-  ## :small_red_triangle_down: Escenario Red de Laboratorio (Escenario de Attaque) 
+  ## :small_red_triangle_down: Escenario  Attaque 
 
 Esta sección documenta la fase ofensiva del de este desde la perspectiva del atacante. Kali Linux actúa como origen del ataque contra la Red de Laboratorio, con el objetivo de vulnerar una API expuesta en Ubuntu Server, utilizarla como punto de pivote hacia el contenedor MariaDB, y obtener credenciales que permitan avanzar hacia el resto de la infraestructura.  
 
@@ -409,3 +409,135 @@ hydra -l Administrador -P midiccionario.txt rdp://192.168.3.10 -t 1 -V
 
 
 ******
+
+
+## 🛡️ Detección — Monitoreo y Análisis de Alertas 
+
+Durante el desarrollo del escenario de ataque, Wazuh estuvo monitoreando en tiempo real toda la actividad generada sobre la infraestructura. Cada técnica ejecutada desde Kali dejó una traza en los logs del sistema que el agente recopiló, procesó y envió al manager para su análisis.
+
+En esta sección muestro cómo esa actividad fue detectada: las reglas personalizadas que escribí para identificar cada técnica, las alertas que se dispararon en el dashboard, y la correlación entre lo que hizo el atacante y lo que vio el SIEM. Todo mapeado contra MITRE ATT&CK.
+
+
+Asumo los roles de SOC L1 y L2 para analizar las alertas generadas durante la actividad detectada en el laboratorio. El análisis comienza con el triage inicial de las alertas y continúa con una investigación más profunda, correlacionando eventos, evidencias y técnicas identificadas durante la actividad.
+
+<div>
+
+<img width="881" height="491" alt="platform-overview-cover" src="https://github.com/user-attachments/assets/cd77e218-beec-4cae-b9d8-db8b769d1a0f" />
+
+</div>
+
+------ 
+
+El SOC L1, responsable de la monitorización y análisis inicial de las alertas, identificó en primera instancia un comportamiento compatible con Command Injection, que activó la regla 100310. Esta alerta permitió al L1 establecer el punto de entrada del incidente y orientar el análisis de la actividad posterior observada en la infraestructura.
+
+A partir de la continuidad de la actividad detectada, se generaron nuevas alertas asociadas a Network Discovery (100311) y Host Discovery (100312), permitiendo al SOC L1 correlacionar la secuencia de eventos y obtener una visión más completa del comportamiento observado para obtener informacion y datos relevantes para el escalamiento .
+
+
+<div align="center">
+<img width="2557" height="912" alt="discovery 310-312" src="https://github.com/user-attachments/assets/65978028-42d9-43c1-aa7c-04ca57039bdf" />
+</div>
+<div align="center">
+<img width="2559" height="913" alt="Discovery 310" src="https://github.com/user-attachments/assets/4ccee032-fb04-4eab-a585-25ece1ea27bb" />
+</div>
+
+<br>
+<br>
+
+
+
+## Rule 100310 
+
+<br>
+
+<div>
+   <img width="2545" height="501" alt="regla 100310" src="https://github.com/user-attachments/assets/de8cec0c-f155-42ca-b6e4-fb2b8bca05a0" />
+</div>
+                                                      
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp|2026-09-28 19:06:57 |
+| agent.ip | 192.168.3.100 |
+| agent.name | Ubunt-Serv-Agent| 
+| data.result | PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data. 64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=9.66 ms --- 8.8.8.8 ping statistics --- 1 packets transmitted, 1 received, 0% packet loss, time 0ms rtt min| 
+| data.source  |   infrastructure-status-api| 
+| data.parameters.hostname | 8.8.8.8; whoami | 
+| rule.level | 10|
+| rule.mitre.id | T1059.004 | 
+| rule.mitre.tactic | Execution |
+ 
+
+<br>
+<br>
+
+
+
+## Rule 100311
+
+<br>
+
+<div>
+<img width="2542" height="452" alt="regla 100311" src="https://github.com/user-attachments/assets/f1396495-8101-4c46-b08b-25605ce2ddec" />
+</div>
+
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp|2026-09-28 19:08:05 |
+| agent.ip | 192.168.3.100 |
+| agent.name | Ubunt-Serv-Agent| 
+| data.result |PING 127.0.0.1 (127.0.0.1) 56(84) bytes of data. 64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.075 ms --- 127.0.0.1 ping statistics --- 1 packets transmitted, 1 received, 0% packet loss, time 0ms| 
+| data.source  |   infrastructure-status-api| 
+| data.parameters.hostname | 127.0.0.1; cat /proc/net/fib_trie | 
+| rule.level | 8|
+| rule.mitre.id | T1016 | 
+| rule.mitre.tactic | Discovery |
+
+
+<br>
+<br>
+
+
+
+## Rule 100312
+
+<br>
+
+<div>
+<img width="2523" height="213" alt="regla 100312" src="https://github.com/user-attachments/assets/54136e12-15a6-42cf-aa92-907eba6f1dae" />
+</div>
+
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp|2026-09-28 19:08:53 |
+| agent.ip | 192.168.3.100 |
+| agent.name | Ubunt-Serv-Agent|
+| rule.id |  | 
+| rule.description |  | 
+| rule.level | 8|
+| rule.mitre.id | T1018 | 
+| rule.mitre.tactic |   Discovery |
+| data.result | PING 127.0.0.1 (127.0.0.1) 56(84) bytes of data. 64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.071 ms --- 127.0.0.1 ping statistics --- 1 packets transmitted, 1 received, 0% packet loss, time 0ms| 
+| data.source  |   infrastructure-status-api| 
+| data.parameters.hostname | 127.0.0.1; ping -c 1 172.18.0.3 | 
+
+
+
+---------------------
+<br>
+Las tres alertas se validan como actividad maliciosa, no como falso positivo. El endpoint /check-host solo debería recibir un host para hacer un ping, y en ese campo llegan comandos del sistema que además se ejecutaron. Ningún uso normal de la aplicación produce eso.
+
+Las alertas siguen una progresión lógica (ejecución, reconocimiento de la red, apunte a otro host interno), propia de un ataque en preparación. 
+
+<br>
+
+- La regla 100310 confirma ejecución de comandos, algo que un administrador legítimo no haría a través de /check-host.
+- Las alertas 100311 y 100312 se disparan minutos después sobre el mismo agente, endpoint y parámetro, lo que descarta eventos aislados.
+- El destino del último comando (172.18.0.3) es un host interno distinto del servidor comprometido, lo que indica intención de movimiento lateral.
+
+
+ <br>
+ 
+ La conclusion sobre este escenario es  actividad maliciosa confirmada ,no se trata de un falso positivo  y se procede a documentar y escalar al L2 
+
+ 
+
+ 
