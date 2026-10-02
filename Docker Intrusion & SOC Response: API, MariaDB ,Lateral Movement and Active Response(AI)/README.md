@@ -837,6 +837,16 @@ Continuando con el monitoreo de la actividad, se identificaron nuevas alertas ge
 | data.parameters.alert.data.win.eventdata.workstationName | kali |
 | data.parameters.alert.data.win.system.eventID | 4625 |
 
+<br>
+
+<div>
+
+  <img width="1023" height="398" alt="image" src="https://github.com/user-attachments/assets/f315a226-34b5-4b53-b581-6f5746eccd8a" />
+
+</div>
+
+<br>
+
 
 ## Informe
 Las alertas se validan como actividad maliciosa, no como falso positivo. Se registraron 8 intentos de inicio de sesión fallidos contra la cuenta Administrador en 14 segundos, todos por red desde la misma IP (192.168.3.163). Ese ritmo no corresponde a un usuario equivocándose de contraseña sino a una herramienta automatizada, y el subestado 0xC000006A muestra que el atacante ya conocía que la cuenta existía.
