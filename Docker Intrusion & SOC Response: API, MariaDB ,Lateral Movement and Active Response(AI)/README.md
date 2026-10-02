@@ -851,5 +851,7 @@ La conclusión es un verdadero positivo confirmado, contenido por la respuesta a
 
 ------
 
+# Ticket / Escalacion 
 
-### 
+                                                                            
+-  [🎫 Tickets - Fuerza bruta RDP contra SERV-LAB con bloqueo automático de IP) ](https://github.com/Lucasjavier708/Purple-Team-Detection-Lab/blob/main/Docker%20Intrusion%20%26%20SOC%20Response%3A%20API%2C%20MariaDB%20%2CLateral%20Movement%20and%20Active%20Response(AI)/TICKETS.md)      
