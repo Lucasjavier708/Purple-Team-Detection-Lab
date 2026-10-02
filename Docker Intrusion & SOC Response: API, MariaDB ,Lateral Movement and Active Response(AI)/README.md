@@ -571,3 +571,171 @@ Seguido a los intentos de Command Injection detectados anteriormente, y como con
 
 </div>
 
+<br>
+<br>
+
+
+
+## Rule 100402 
+
+<br>
+
+<div>
+   <img width="2532" height="217" alt="402" src="https://github.com/user-attachments/assets/68751554-d8a6-4ed8-8737-0f4eae5fe31f" />
+</div>
+                                                      
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp|2026-09-28 19:14:29 |
+| agent.ip | 192.168.3.100 |
+| agent.name | Ubunt-Serv-Agent| 
+| data.mariadb.user |root | 
+| data.mariadb.host  |  127.18.0.2| 
+| data.maradb.query | SELECT user FROM mysql.user | 
+| rule.level | 8|
+| rule.description | MAriadb -Enumeracion de usuarios del Sistema  | 
+| rule.mitre.id | T1078 | 
+| rule.mitre.tactic |  Discovery  |
+
+<br>
+<br>
+
+
+
+## Rule 100403
+
+<br>
+
+<div>
+  <img width="2546" height="276" alt="403" src="https://github.com/user-attachments/assets/986410ee-f1f4-49c9-9c2d-857098c6f8c9" />
+</div>
+                                                      
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp|2026-09-28 19:14:29 |
+| agent.ip | 192.168.3.100 |
+| agent.name | Ubunt-Serv-Agent| 
+| data.naruadb.user |TCFD | 
+| data.mariadb.host  |  127.18.0.2| 
+| data.maradb.query | SELECT 1 | 
+| rule.level | 8|
+| rule.description | MAriadb -Accesos mediante credenciales validas detectado | 
+| rule.mitre.id | T1078 | 
+| rule.mitre.tactic | Defensive evasion/ Persistence / Initial Acces |
+ 
+<br>
+<br>
+
+
+
+## Rule 100404
+
+<br>
+
+<div>
+  <img width="2527" height="201" alt="404" src="https://github.com/user-attachments/assets/96e87540-fc72-4d97-8575-e517a87ed6ce" />
+
+</div>
+                                                      
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp|2026-09-28 19:06:57 |
+| agent.ip | 192.168.3.100 |
+| agent.name | Ubunt-Serv-Agent| 
+| data.mariadb.user |TCFD| 
+| data.mariadb.host | 127.18.0.2| 
+| data.mariadb.query | SELEC_CURRENT_USER() | 
+| rule.level | 8|
+|ruel.descripcion | Mariadb-Identificacion del ususario actual detectada |
+| rule.mitre.id | T1033 | 
+| rule.mitre.tactic | Discovery |
+
+
+<br>
+<br>
+
+
+
+## Rule 1003405 
+
+<br>
+
+ <div>
+   <img width="2527" height="182" alt="405" src="https://github.com/user-attachments/assets/fe25e907-f878-437c-b306-e14abb312b9e" />
+
+ </div>
+                                                      
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp|2026-09-28 19:19:29 |
+| agent.ip | 192.168.3.100 |
+| agent.name | Ubunt-Serv-Agent| 
+| data.mariadb.user | labadmin | 
+| data.maria.host  | 127.18.0.2| 
+| data.mariadb.query | SHOW DATABASES | 
+| rule.level | 8|
+| rule.description  |Mariadb-Enumeracion de estructura e informacion de infraestructura detectada |
+| rule.mitre.id | T1213 | 
+| rule.mitre.tactic | Collection |
+
+<br>
+<br>
+
+
+
+## Rule 100406 
+
+<br>
+
+ <div>
+<img width="2527" height="182" alt="406" src="https://github.com/user-attachments/assets/d4ed79c8-97b1-47bb-b332-09a9876917c0" />
+
+ </div>
+                                                      
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp|2026-09-28 19:06:57 |
+| agent.ip | 192.168.3.100 |
+| agent.name | Ubunt-Serv-Agent| 
+| data.mariadb.user | kabadmin | 
+| data.mariadb.host  |  corporate_assests | 
+| data.maria.database | SELECT * FROM credentials | 
+| rule.level | 12|
+| rule.description | Mariadb- Acceso a informacion de credenciales detectada |  
+| rule.mitre.id | T1213| 
+| rule.mitre.tactic | Collectioin |
+ 
+ 
+---------------------
+<br>
+
+## Informe 
+Las secuencias de eventyos descarta cualquier actividad legitima por las siguietes razones: 
+
+- Las consultas proveniente del host 127.18.0.2, que es el contenedor de la API comprometida en la Fase 1 - no es un acceso directo administrativos 
+- El ususario TCFD no deberia tener actividad de enumeracion sobre mysql.user
+- La progresion es lineal y deliberada: enumeracion -> acceso -> reconocimiento -> exfiltracion 
+- La alerta 100406 confirma acceso a datos sensibles de la organizacion - credenciales de multiples sistemas 
+
+ <br>
+ 
+La conclusion sobre este escenario queda como un verdadero positivo confirmado . La cadena de actividad iniciada en el ataque anterior escala a un acceso y posible exfiltracion de credenciales. Se procede a escalar al L2 con ticcket de alta prioridad 
+
+ 
+
+
+
+# Ticket / Escalacion 
+
+                                                                            
+-  [🎫 Tickets - Acceso y exfiltración de credenciales detectado sobre MariaDB) ](https://github.com/Lucasjavier708/Purple-Team-Detection-Lab/blob/main/Docker%20Intrusion%20%26%20SOC%20Response%3A%20API%2C%20MariaDB%20%2CLateral%20Movement%20and%20Active%20Response(AI)/TICKETS.md)                 
+
+----
+
+<br>
+
+
+<div>
+  
+</div>
+
