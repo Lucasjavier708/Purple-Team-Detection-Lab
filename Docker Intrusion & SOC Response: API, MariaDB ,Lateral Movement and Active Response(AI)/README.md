@@ -734,8 +734,105 @@ La conclusion sobre este escenario queda como un verdadero positivo confirmado .
 
 <br>
 
+Continuando con el monitoreo de la actividad, se identificaron nuevas alertas generadas sobre el agente SERV-LAB, correspondiente a Windows Server. Se detectaron múltiples intentos de autenticación fallidos sobre el servicio RDP provenientes de 192.168.3.163, lo que activó la regla 100503. Como respuesta automática, Wazuh ejecutó el script de Active Response configurado en el agente, bloqueando la IP atacante mediante Windows Firewall.
+
+<br>
 
 <div>
-  
+  <img width="2558" height="228" alt="657 d" src="https://github.com/user-attachments/assets/72532ee0-ebc9-43fd-8c5e-8353a7336d8f" />
+
 </div>
 
+<div>
+  <img width="2558" height="881" alt="discovery 100503 60122" src="https://github.com/user-attachments/assets/ee879748-bf85-4c67-afb0-be9d0471b24e" />
+
+</div>
+<div>
+  <img width="2558" height="520" alt="discovery 10053 - 60122-" src="https://github.com/user-attachments/assets/b89593b0-bf2d-4bf3-8480-21837ef5690e" />
+</div>
+
+
+
+## Rule 100503 
+
+ <div>
+ <img width="2523" height="228" alt="10053" src="https://github.com/user-attachments/assets/86763eb3-4b81-4e52-8f96-15ac046339fd" />
+ </div>
+
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp|2026-09-28 19:28:22 |
+| agent.ip | 192.168.3.100 |
+| agent.name | Ubunt-Serv-Agent| 
+| data.win.eventdata.IpAddres | 192.168.3.163 | 
+| data.win.eventdata.targetUserName |  Administrador  | 
+| data.win.eventdata.logonType |  3 | 
+| data.win.eventdata.authenticationPackageName | NTLM |
+| data.win.eventdata.workstationName | 	kali  |  
+| data.win.eventdata.status | 0xc000006d | 
+| data.win.system.eventID | 4625 |
+| data.win.eventdata.targetUserName |  Administrador  | 
+| data.win.system.computer | SERV-LAB.redlaboratorio.local3 | 
+| rule.mitre.id | T1110 / T1110.001 |
+| rule.mitre.tactic | Credential Access  |  
+| rule.mitre.technique | Brute Force / Password Guessing | 
+| rule.description | Windows RDP - Fuerza bruta detectada - Bloqueo de IP | 
+
+<br>
+<br>
+
+## Rule 60122 
+
+<div>
+  <img width="2541" height="170" alt="60122" src="https://github.com/user-attachments/assets/f7ff3903-8b5c-463e-a81e-468a332ef3b8" />
+
+</div>
+
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp | 2026-09-28 19:28:18 |
+| agent.name | SERV-LAB |
+| agent.ip | 192.168.3.10 |
+| data.win.eventdata.ipAddress | 192.168.3.163 |
+| data.win.eventdata.workstationName | kali |
+| data.win.eventdata.targetUserName | Administrador |
+| data.win.eventdata.logonType | 3 |
+| data.win.eventdata.authenticationPackageName | NTLM |
+| data.win.eventdata.status | 0xc000006d |
+| data.win.eventdata.subStatus | 0xc000006a |
+| data.win.system.eventID | 4625 |
+| rule.id | 60122 |
+| rule.description | Logon Failure - Unknown user or bad password |
+| rule.mitre.id | T1531 |
+| rule.mitre.tactic | Impact |
+
+
+<br>
+<br>
+
+## Rule 657
+
+
+<div>
+<img width="2521" height="246" alt="657" src="https://github.com/user-attachments/assets/75642a90-ea58-40a9-b62a-d06764fb7391" />
+</div>
+
+| ![Campo](https://img.shields.io/badge/CAMPO-4B5563?style=for-the-badge) | ![Valor](https://img.shields.io/badge/VALOR-4B5563?style=for-the-badge) |
+|:------|:------|
+| timestamp | 2026-09-28 19:28:24 |
+| agent.name | SERV-LAB |
+| agent.ip | 192.168.3.10 |
+| rule.id | 657 |
+| rule.description | Active response: active-response/bin/netsh.exe - add |
+| rule.level | 3 |
+| data.srcip | 192.168.3.163 |
+| data.command | add |
+| data.parameters.program | active-response/bin/netsh.exe |
+| data.parameters.alert.rule.id | 100503 |
+| data.parameters.alert.rule.description | Windows RDP - Fuerza bruta detectada - Bloqueo de IP |
+| data.parameters.alert.rule.level | 12 |
+| data.parameters.alert.rule.mitre.id | T1110, T1110.001 |
+| data.parameters.alert.rule.mitre.tactic | Credential Access |
+| data.parameters.alert.data.win.eventdata.targetUserName | Administrador |
+| data.parameters.alert.data.win.eventdata.workstationName | kali |
+| data.parameters.alert.data.win.system.eventID | 4625 |
