@@ -836,3 +836,20 @@ Continuando con el monitoreo de la actividad, se identificaron nuevas alertas ge
 | data.parameters.alert.data.win.eventdata.targetUserName | Administrador |
 | data.parameters.alert.data.win.eventdata.workstationName | kali |
 | data.parameters.alert.data.win.system.eventID | 4625 |
+
+
+## Informe
+Las alertas se validan como actividad maliciosa, no como falso positivo. Se registraron 8 intentos de inicio de sesión fallidos contra la cuenta Administrador en 14 segundos, todos por red desde la misma IP (192.168.3.163). Ese ritmo no corresponde a un usuario equivocándose de contraseña sino a una herramienta automatizada, y el subestado 0xC000006A muestra que el atacante ya conocía que la cuenta existía.
+
+El origen es el equipo `kali`, el mismo de las fases anteriores, y la cuenta y el servidor atacados son los que se obtuvieron de la base de datos MariaDB, por lo que no hay una explicación legítima y el intento es la continuación de la cadena de ataque. La regla 100503 lo detectó como fuerza bruta al llegar a 6 fallos y la regla 657 confirma que Active Response bloqueó la IP.
+
+
+
+ <br>
+ 
+La conclusión es un verdadero positivo confirmado, contenido por la respuesta automática. Se documenta y se escala al L2. 
+
+------
+
+
+### 
