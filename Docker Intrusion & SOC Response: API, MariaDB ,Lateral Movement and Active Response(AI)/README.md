@@ -865,3 +865,48 @@ La conclusión es un verdadero positivo confirmado, contenido por la respuesta a
 
                                                                             
 -  [🎫 Tickets - Fuerza bruta RDP contra SERV-LAB con bloqueo automático de IP) ](https://github.com/Lucasjavier708/Purple-Team-Detection-Lab/blob/main/Docker%20Intrusion%20%26%20SOC%20Response%3A%20API%2C%20MariaDB%20%2CLateral%20Movement%20and%20Active%20Response(AI)/TICKETS.md)      
+
+
+------
+
+
+## 🔵  Investigación y respuesta ante incidentes escalados 
+
+A partir de los tickets y evidencias recibidos del SOC L1, se inicia el análisis correspondiente al nivel L2. En esta sección se profundiza la investigación de cada fase del incidente mediante el análisis de las alertas, registros y evidencias recopiladas , con el objetivo de validar la actividad detectada, identificar indicadores relevantes y establecer los principales hallazgos de cada incidente.correlacionar los eventos 
+
+---
+<br>
+
+- Ubunt-Serv-Agent registró 71 eventos concentrados en un período corto, sin actividad previa — lo que descarta actividad legítima y confirma un ataque dirigido. La secuencia muestra cómo el Command Injection sobre la API [ 1 ]  derivó               progresivamente en acceso y enumeración sobre MariaDB, culminando con la alerta crítica 100406 (acceso a tabla credentials). 
+
+<br>
+[1] 
+<div>
+  <img width="2559" height="868" alt="ubuntu-logs api 2" src="https://github.com/user-attachments/assets/17696d6e-3ea5-4a2c-b00b-8d8f57d82127" />
+
+</div>
+
+<br>
+[2]
+<div>
+  <img width="2546" height="692" alt="Ubuntu-logs Mariadb" src="https://github.com/user-attachments/assets/14ba3ec5-e5fe-4689-91e3-6379a3fc17e4" />
+
+</div>
+
+
+<br>
+
+- SERV-LAB registró 10 eventos en 16 segundos: 7 intentos fallidos de autenticación RDP (60122), seguidos de la detección de fuerza bruta (100503, nivel 12) y la ejecución automática del Active Response (657) que bloqueó la IP atacante.
+
+<div>
+  <img width="2559" height="848" alt="Active-logs" src="https://github.com/user-attachments/assets/b347816c-aa96-4484-91cc-260165606029" />
+
+</div>
+
+
+<br>
+<br>
+<br>
+
+
+A partir de la investigación inicial realizada por el SOC L2, se continúa con el análisis individual de cada incidente escalado. Esta etapa corresponde a la profundización operativa del caso, tomando como punto de partida los tickets generados durante el triage de L1 y las evidencias recopiladas durante la investigación inicial. El análisis se organiza según las distintas fases que componen el incidente, permitiendo documentar los hallazgos y resultados obtenidos en cada caso.
