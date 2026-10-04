@@ -1,1 +1,333 @@
 
+---
+tags: [playbook, brute-force, rdp, active-response, windows]
+mitre: T1110, T1110.001, T1078
+ticket: IRSOC-5
+---
+
+# PB-03 — Fuerza Bruta RDP con Active Response
+
+> [!NOTE] Fuerza bruta RDP vs error de usuario legítimo
+> No todo Event ID 4625 es un ataque. La diferencia está en
+> el volumen, la velocidad y el origen.
+>
+> - **1-3 intentos fallidos desde IP interna conocida** → usuario olvidó contraseña → FP
+> - **7+ intentos en menos de 20 segundos desde IP externa** → herramienta automatizada → P1
+> - **Éxito después de múltiples fallos** → cuenta comprometida → P1 inmediato, deshabilitar cuenta YA
+>
+> En este escenario se detectaron 7 intentos fallidos en 14 segundos
+> desde `192.168.3.163` (kali) contra el usuario `Administrador` en
+> `SERV-LAB`. La regla `100503` detectó el patrón y disparó
+> Active Response automáticamente bloqueando la IP atacante.
+
+---
+
+## Trigger indicators
+
+- Alerta `60122` — Logon Failure - Unknown user or bad password (nivel 5)
+- Alerta `100503` — Fuerza bruta RDP detectada (nivel 12, T1110/T1110.001) 🔴
+- Alerta `657` — Active Response ejecutado (`netsh.exe add`)
+- Múltiples Event ID `4625` en corto período de tiempo
+- Mismo usuario objetivo (`Administrador`) en todos los intentos
+- Origen desde IP externa o no autorizada
+- Protocolo NTLM con `LogonType: 3` (red)
+- Actividad precedida por exfiltración de credenciales (PB-02)
+
+---
+
+## Árbol de investigación
+
+ALERTA: Múltiples Logon Failure — Regla 60122 / 100503
+ │
+ ├─► PASO 1: ¿Es actividad legítima o ataque automatizado?
+ │   Revisar: cantidad de intentos, velocidad, IP origen
+ │         │
+ │         ├─ 1-3 intentos, IP interna conocida → Posible FP → Verificar con usuario
+ │         └─ 7+ intentos en <20 segundos, IP externa → Ataque automatizado → PASO 2
+ │
+ ├─► PASO 2: ¿La regla 100503 ya disparó Active Response?
+ │   Wazuh Discover:
+ │   agent.name:"SERV-LAB" and rule.id:100503
+ │         │
+ │         ├─ 100503 no disparó → Revisar configuración de Active Response
+ │         └─ 100503 disparó → Verificar que 657 ejecutó el bloqueo → PASO 3
+ │
+ ├─► PASO 3: ¿El Active Response bloqueó la IP correctamente?
+ │   Verificar alerta 657 y regla de firewall en Windows
+ │         │
+ │         ├─ IP no bloqueada → Bloquear manualmente → PASO 4
+ │         └─ IP bloqueada correctamente → Confirmar bloqueo → PASO 4
+ │
+ └─► PASO 4: ¿Hubo algún intento exitoso antes del bloqueo?
+     Wazuh Discover:
+     agent.name:"SERV-LAB" and rule.id:60106
+ │
+ ├─ Sin login exitoso → Contención exitosa → Documentar y cerrar
+ └─ Login exitoso detectado → Cuenta comprometida → P1 → Deshabilitar cuenta YA
+
+
+---
+
+## Paso 1 — Triage L1
+
+### Filtros Wazuh 
+
+Ver intentos fallidos de RDP
+
+agent.name:"SERV-LAB" and rule.id:60122
+
+Ver alerta crítica de fuerza bruta
+
+agent.name:"SERV-LAB" and rule.id:100503
+
+Ver cadena completa (intentos + detección + Active Response)
+
+agent.name:"SERV-LAB" and rule.id:(60122 or 100503 or 657)
+
+Verificar si hubo login exitoso
+
+agent.name:"SERV-LAB" and rule.id:60106
+
+<br> 
+
+
+### Datos a extraer por alerta
+
+| Campo | Descripción |
+|---|---|
+| `data.win.eventdata.ipAddress` | IP origen del atacante |
+| `data.win.eventdata.targetUserName` | Usuario objetivo |
+| `data.win.eventdata.workstationName` | Nombre del equipo atacante |
+| `data.win.eventdata.logonType` | Tipo de inicio de sesión (3 = red) |
+| `data.win.eventdata.status` | Código de error |
+| `data.win.eventdata.subStatus` | Subcódigo de error |
+| `data.win.system.eventID` | ID del evento Windows (4625) |
+| `rule.firedtimes` | Cantidad de veces que disparó la regla |
+| `timestamp` | Momento exacto del intento |
+
+### Evidencia real del laboratorio
+
+**Alerta 100503 — Fuerza bruta detectada:**
+
+| Campo | Valor |
+|---|---|
+| `rule.id` | `100503` |
+| `rule.level` | `12` |
+| `agent.name` | `SERV-LAB` |
+| `data.win.eventdata.ipAddress` | `192.168.3.163` |
+| `data.win.eventdata.targetUserName` | `Administrador` |
+| `data.win.eventdata.workstationName` | `kali` |
+| `data.win.eventdata.logonType` | `3` |
+| `data.win.eventdata.status` | `0xc000006d` |
+| `data.win.eventdata.subStatus` | `0xc000006a` |
+| `data.win.system.eventID` | `4625` |
+| `timestamp` | `2026-09-28 19:28:22` |
+
+**Alerta 657 — Active Response ejecutado:**
+
+| Campo | Valor |
+|---|---|
+| `rule.id` | `657` |
+| `rule.description` | `Active response: active-response/bin/netsh.exe - add` |
+| `data.srcip` | `192.168.3.163` |
+| `data.command` | `add` |
+| `data.parameters.program` | `active-response/bin/netsh.exe` |
+| `data.parameters.alert.rule.id` | `100503` |
+| `timestamp` | `2026-09-28 19:28:24` |
+
+> [!NOTE] Cadena de respuesta automática
+> En este escenario el tiempo entre la detección (100503) y el
+> bloqueo automático (657) fue de **2 segundos**.
+> La IP atacante `192.168.3.163` quedó bloqueada en Windows Firewall
+> sin intervención manual del analista.
+
+---
+
+## Paso 2 — Análisis L2
+
+### Verificar el bloqueo en Windows Server
+
+```powershell
+# Confirmar que la regla de firewall fue creada por Wazuh
+netsh advfirewall firewall show rule name="WAZUH ACTIVE RESPONSE BLOCKED IP"
+
+# Ver todas las reglas creadas por Wazuh
+Get-NetFirewallRule | Where-Object {$_.DisplayName -like '*WAZUH*'} |
+    Format-Table DisplayName, Enabled, Direction, Action
+
+# Verificar los últimos eventos 4625 en Windows
+Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 10 |
+    Format-List TimeCreated, Message
+
+# Confirmar que no hubo login exitoso (4624) desde la IP atacante
+Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624} |
+    Where-Object {$_.Message -match "192.168.3.163"} |
+    Select TimeCreated, Message
+```
+
+### Verificar el log de Active Response
+
+```bash
+# En el Wazuh Manager
+sudo grep '192.168.3.163' /var/ossec/logs/active-responses.log
+
+# En el agente Windows
+Get-Content "C:\Program Files (x86)\ossec-agent\active-response\active-responses.log" -Tail 20
+```
+
+### Validar el bloqueo desde Kali
+
+```bash
+# Antes del bloqueo → open
+nmap -Pn -p 3389 192.168.3.10
+# Resultado esperado: 3389/tcp open ms-wbt-server
+
+# Después del bloqueo → filtered
+nmap -Pn -p 3389 192.168.3.10
+# Resultado esperado: 3389/tcp filtered ms-wbt-server
+```
+
+### Regla Wazuh involucrada
+
+```xml
+<rule id="100503" level="12">
+  <if_sid>60204</if_sid>
+  <field name="win.eventdata.targetUserName">^Administrador$</field>
+  <description>Windows RDP - Fuerza bruta detectada - Bloqueo de IP</description>
+  <mitre>
+    <id>T1110</id>
+    <id>T1110.001</id>
+  </mitre>
+  <group>RDP_Rules,windows,rdp,brute_force,authentication_failed,</group>
+</rule>
+```
+
+### Configuración de Active Response
+
+```xml
+<command>
+    <name>netsh</name>
+    <executable>netsh.exe</executable>
+    <timeout_allowed>yes</timeout_allowed>
+</command>
+
+<active-response>
+    <disabled>no</disabled>
+    <command>netsh</command>
+    <location>local</location>
+    <rules_id>100503</rules_id>
+    <timeout>3600</timeout>
+</active-response>
+```
+
+> [!NOTE] Decisión de diseño — disparo directo vs correlación por frecuencia
+> Se evaluó configurar la regla `100503` con `frequency`, `timeframe`
+> y `same_field` para detectar 3 intentos en 60 segundos.
+> Se descartó porque el disparo directo ya cubría el caso correctamente
+> y evitaba falsos negativos por retraso de correlación.
+> La configuración actual debe mantenerse como disparo directo.
+
+---
+
+## Paso 3 — Contención
+
+### Paso 3 — Contención
+
+#### Si solo hay intentos fallidos (60122) sin 100503:
+- [ ] Bloquear IP manualmente en Windows Firewall
+- [ ] Verificar configuración de Active Response
+- [ ] **P2** — Escalar a L2, ticket urgente
+
+#### Si 100503 disparó y 657 confirmó el bloqueo:
+- [ ] Verificar regla de firewall en Windows
+- [ ] Confirmar con Nmap que RDP está `filtered`
+- [ ] Revisar si hubo login exitoso antes del bloqueo
+- [ ] **P1** — Documentar y escalar a L2
+
+#### Si hubo login exitoso antes del bloqueo:
+- [ ] Deshabilitar cuenta `Administrador` inmediatamente
+- [ ] Forzar cierre de todas las sesiones activas
+- [ ] Revisar actividad post-login en el servidor
+- [ ] **P1 CRÍTICO** — Escalar inmediatamente 
+
+<br> 
+
+
+```powershell
+# Bloqueo manual si Active Response no disparó
+netsh advfirewall firewall add rule `
+    name="BLOCK ATTACKER" `
+    dir=in `
+    action=block `
+    remoteip=192.168.3.163
+
+# Deshabilitar cuenta si hubo login exitoso
+Disable-ADAccount -Identity "Administrador"
+
+# Verificar sesiones activas en el servidor
+query session /server:SERV-LAB
+
+# Forzar cierre de sesión
+logoff <session_id> /server:SERV-LAB
+```
+
+---
+
+## Criterios de escalada
+
+| Condición | Prioridad | Acción |
+|---|---|---|
+| Intentos fallidos aislados, IP interna conocida | P3 | Verificar con usuario, monitorear |
+| 7+ intentos en <20 segundos, IP externa | P2 | Escalar a L2, bloquear IP |
+| 100503 disparó, Active Response ejecutado | P1 | Confirmar bloqueo, escalar a L2 |
+| Login exitoso detectado post-ataque | P1 CRÍTICO | Deshabilitar cuenta YA, escalar |
+
+---
+
+## Cobertura MITRE ATT&CK
+
+| Técnica | ID | Táctica | Descripción |
+|---|---|---|---|
+| Brute Force | T1110 | Credential Access | Múltiples intentos de autenticación fallidos contra RDP |
+| Password Guessing | T1110.001 | Credential Access | Ataque con diccionario usando Hydra |
+| Valid Accounts | T1078 | Initial Access | Uso de credenciales obtenidas de MariaDB |
+
+---
+
+## Recomendaciones de remediación
+
+```powershell
+# Habilitar NLA (Network Level Authentication)
+reg add "HKLM\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" `
+    /v SecurityLayer /t REG_DWORD /d 2 /f
+
+# Configurar política de bloqueo de cuenta
+# Umbral: 5 intentos → bloqueo 15 minutos
+net accounts /lockoutthreshold:5 /lockoutduration:15 /lockoutwindow:15
+
+# Restringir RDP a IPs autorizadas
+netsh advfirewall firewall set rule name="Remote Desktop" `
+    new remoteip=192.168.2.0/24
+```
+
+**Acciones adicionales:**
+- Habilitar MFA en todas las cuentas con acceso RDP
+- Cambiar el puerto RDP del default (3389) a un puerto no estándar
+- Implementar geo-blocking para países sin necesidad de acceso
+- Monitorear Event ID 4624 (login exitoso) después de múltiples 4625
+- Considerar implementar un honeypot de cuenta Administrador
+
+---
+
+## Herramientas
+
+| Herramienta | Propósito |
+|---|---|
+| Wazuh Dashboard — Discover | Análisis de alertas y correlación |
+| Wazuh Threat Hunting — SERV-LAB | Revisión de actividad completa del agente |
+| Windows Event Viewer | Verificación del evento 4625 crudo |
+| PowerShell | Verificación del bloqueo en firewall |
+| Nmap | Validación del bloqueo desde Kali |
+| Jira — IRSOC-5 | Ticket de referencia |
+
+→ Playbook anterior: **PB-02 — Acceso y Exfiltración de Base de Datos MariaDB**
