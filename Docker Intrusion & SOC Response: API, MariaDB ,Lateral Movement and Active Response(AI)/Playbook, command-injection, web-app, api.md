@@ -250,24 +250,28 @@ sudo tail -n 50 /var/lib/docker/volumes/corp_assetdata/_data/server_audit.log
 ---
 
 ## Paso 3 — Contención
-<br>
-Si solo hay Command Injection sin actividad posterior:
-□ Bloquear IP atacante en el firewall de red
-□ Detener el contenedor de la API temporalmente
-□ Revisar y sanitizar el parámetro hostname en el código fuente
-□ P2 — Escalar a L2 con ticket
 
-Si hay reconocimiento de red (100311/100312):
-□ Bloquear IP atacante inmediatamente
-□ Aislar el contenedor de la API de la red interna Docker
-□ Revisar reglas de red entre contenedores
-□ P1 — Escalar a L2 con ticket urgente
 
-Si hay evidencia de acceso a servicios internos:
-□ Detener el contenedor de la API
-□ Aislar el contenedor de MariaDB
-□ Preservar los logs para análisis forense
-□ P1 — Activar PB-02 inmediatamente
+### Paso 3 — Contención
+
+#### Si solo hay Command Injection sin actividad posterior:
+- [ ] Bloquear IP atacante en el firewall de red
+- [ ] Detener el contenedor de la API temporalmente
+- [ ] Revisar y sanitizar el parámetro `hostname` en el código fuente
+- [ ] **P2** — Escalar a L2 con ticket
+
+#### Si hay reconocimiento de red (100311/100312):
+- [ ] Bloquear IP atacante inmediatamente
+- [ ] Aislar el contenedor de la API de la red interna Docker
+- [ ] Revisar reglas de red entre contenedores
+- [ ] **P1** — Escalar a L2 con ticket urgente
+
+#### Si hay evidencia de acceso a servicios internos:
+- [ ] Detener el contenedor de la API
+- [ ] Aislar el contenedor de MariaDB
+- [ ] Preservar los logs para análisis forense
+- [ ] **P1** — Activar PB-02 inmediatamente
+
 
 <br>
 
