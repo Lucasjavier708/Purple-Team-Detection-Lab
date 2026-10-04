@@ -910,3 +910,985 @@ A partir de los tickets y evidencias recibidos del SOC L1, se inicia el análisi
 
 
 A partir de la investigación inicial realizada por el SOC L2, se continúa con el análisis individual de cada incidente escalado. Esta etapa corresponde a la profundización operativa del caso, tomando como punto de partida los tickets generados durante el triage de L1 y las evidencias recopiladas durante la investigación inicial. El análisis se organiza según las distintas fases que componen el incidente, permitiendo documentar los hallazgos y resultados obtenidos en cada caso.
+
+
+<br>
+
+- ## [🎫 Tickets - Command Injection en /check-host con reconocimiento de red interna (Ubunt-Serv-Agent) ](https://github.com/Lucasjavier708/Purple-Team-Detection-Lab/blob/main/Docker%20Intrusion%20%26%20SOC%20Response%3A%20API%2C%20MariaDB%20%2CLateral%20Movement%20and%20Active%20Response(AI)/TICKETS.md)                 
+
+
+<br> 
+
+El Atacante exploto una vulnerabilidad en el endpoint `/check-host` inyectando un comando separado por `;` . La primera alerta (100310) detecto que junto a ` whoami`, ejecutnado un ping valido, confiriendo ejecucion /mota.
+Segundos despues (100311), desde el mismo contenedor comprometido (172.18.0.2), consulto `/proc/net/fib_trie` - no una herramienta administrativa legitima, sino reconocimiento de red interna. Esto revelo el segmento 172.18.0.0/16 (red Docker interna)
+
+Finalmente (100312), el atacante **pivoteo su reconocimiento haciua 172.18.0.3**, usado ping como vector de discovery, apuntando a un hots especifico no visible desde afuerta.
+
+<br>
+
+
+**Alerta 100310** (Command Injection)
+```json
+{"timestamp":"2026-09-28T22:06:57.445182","endpoint":"/check-host","parameters":{"hostname":"8.8.8.8; whoami"},"result":"PING 8.8.8.8...","status":"success"}
+```
+
+**Alerta 100311** (Network Discovery)
+```json
+{"timestamp":"2026-09-28T22:08:05.616892","endpoint":"/check-host","parameters":{"hostname":"127.0.0.1; cat /proc/net/fib_trie"},"result":"PING 127.0.0.1..."}
+```
+
+**Alerta 100312** (Host Discovery)
+```json
+{"timestamp":"2026-09-28T22:08:53.222722","endpoint":"/check-host","parameters":{"hostname":"127.0.0.1; ping -c 1 172.18.0.3"},"result":"PING 127.0.0.1..."}
+```
+
+<br> 
+
+<div>
+  <img width="2560" height="1415" alt="310" src="https://github.com/user-attachments/assets/fcb77f78-ee0e-4ed4-9a06-0ddf0786e6ff" />
+</div>
+
+
+<br>
+
+<div>
+  <img width="2560" height="1393" alt="311" src="https://github.com/user-attachments/assets/0b08d879-7f03-4519-b9da-ec5fcdcc02ca" />
+
+</div>
+
+<br> 
+
+<div>
+  <img width="2560" height="1393" alt="312" src="https://github.com/user-attachments/assets/70e5eba3-3309-4763-b188-731ec2f5a7c2" />
+
+</div>
+
+### Campos Sospechosos — Análisis Técnico
+
+| Campo | Valor | Por qué es sospechoso |
+|-------|-------|----------------------|
+| `data.parameters.hostname` | `8.8.8.8; whoami` | Contiene comando `;` separado, no es un hostname válido |
+| `data.result` | PING exitoso + output de whoami | Ejecución confirmada de comando arbitrario |
+| `data.timestamp` | 19:06:57 → 19:08:05 → 19:08:53 | Progresión deliberada y secuencial (no accidental) |
+| `data.source` | infrastructure-status-api | Mismo endpoint vulnerable usado para todas las inyecciones |
+| `data.endpoint` | /check-host | Parámetro no validado, acepta input malicioso |
+| Progresión | Ejecución → Discovery → Pivoting | Patrón típico de ataque, no comportamiento legítimo |
+
+<br>
+
+### Conclusión L2
+
+✅ **Verdadero Positivo Confirmado**
+
+Las tres alertas forman una cadena lógica de ataque: primero confirmó ejecución 
+remota con `whoami`, luego enumeró la red interna Docker, y finalmente apuntó 
+a un host específico (172.18.0.3). No hay duda de que fue un atacante preparando 
+el acceso a MariaDB para la siguiente fase. Esto no es un falso positivo.
+
+---
+
+<br>
+
+- ## [🎫 Tickets - Acceso y exfiltración de credenciales detectado sobre MariaDB) ](https://github.com/Lucasjavier708/Purple-Team-Detection-Lab/blob/main/Docker%20Intrusion%20%26%20SOC%20Response%3A%20API%2C%20MariaDB%20%2CLateral%20Movement%20and%20Active%20Response(AI)/TICKETS.md) 
+
+<br>
+
+Con el acceso inicial confirmado, el atacante avanzó hacia MariaDB (172.18.0.3). La alerta 100402 detectó la enumeración de usuarios mediante SELECT user FROM mysql.user.
+
+Luego, mediante 100403, obtuvo acceso utilizando la cuenta TCFD sin contraseña y continuó con la enumeración del entorno: usuario actual, bases y tablas (100404–100405).
+
+Finalmente, la alerta 100406 detectó el acceso a la tabla credentials, obteniendo información sensible de distintos sistemas.
+
+La fase evidencia la progresión desde el acceso inicial hacia la enumeración y extracción de información sensible.
+
+<br>
+
+**Alerta 100402** (Enumeración de usuarios MySQL)
+```json
+20260928 22:13:03,4ca86714d046,root,172.18.0.2,8,10,QUERY,mysql,'SELECT user FROM mysql.user',0
+```
+
+
+**Alerta 100403** (Acceso con TCFD)
+```json
+20260928 22:14:27,4ca86714d046,TCFD,172.18.0.2,9,12,QUERY,,'SELECT 1',0
+```
+
+**Alerta 100404** (Identificación de usuario actual)
+```json
+20260928 22:15:33,4ca86714d046,TCFD,172.18.0.2,10,14,QUERY,,'SELECT CURRENT_USER()',0
+```
+**Alerta 100405a** (Enumeración de bases)
+```json
+20260928 22:19:28,4ca86714d046,labadmin,172.18.0.2,12,18,QUERY,,'SHOW DATABASES',0
+```
+
+**Alerta 100405b** (Enumeración de tablas)
+```json
+20260928 22:23:57,4ca86714d046,labadmin,172.18.0.2,13,22,QUERY,corporate_assets,'SHOW TABLES',0
+```
+
+**Alerta 100405c** (Enumeración de endpoints)
+```json
+20260928 22:25:25,4ca86714d046,labadmin,172.18.0.2,14,26,QUERY,corporate_assets,'SELECT * FROM endpoints',0
+```
+
+**Alerta 100406** (Exfiltración de credenciales)
+```json
+20260928 22:26:28,4ca86714d046,labadmin,172.18.0.2,15,30,QUERY,corporate_assets,'SELECT * FROM credentials',0
+```
+
+<br> 
+
+<div>
+  <img width="2560" height="1442" alt="100402" src="https://github.com/user-attachments/assets/6a2a5318-cd63-4d12-825c-468f59d0dd45" />
+</div>
+
+<br> 
+
+<div>
+  <img width="1190" height="1403" alt="cop-403" src="https://github.com/user-attachments/assets/a2961616-4464-4290-8688-528539093a98" />
+</div>
+
+<br>
+
+<div>
+ <img width="1225" height="1403" alt="cop 404" src="https://github.com/user-attachments/assets/cb9378f8-138e-44e7-98eb-9222322a2d2b" />
+
+
+</div>
+
+<br>
+
+<div>
+  <img width="1310" height="1403" alt="cop-405" src="https://github.com/user-attachments/assets/213f792d-7ea0-4501-833d-d12df68b5ddf" />
+</div>
+
+<br>
+
+<div>
+  <img width="1094" height="1301" alt="405-tables" src="https://github.com/user-attachments/assets/b396ed42-30f0-4e2d-8c52-15b3ad15cd4f" />
+
+</div>
+
+<br>
+
+<div>
+  <img width="1187" height="1301" alt="405-endp" src="https://github.com/user-attachments/assets/92e200da-e042-43cc-be33-ce5b50067ecd" />
+</div>
+
+<br>
+
+<div>
+  <img width="1350" height="1442" alt="cop-406" src="https://github.com/user-attachments/assets/e58076cf-2799-4224-9c2e-4d2c8b446252" />
+</div>
+
+<br> 
+
+| Campo | Valor | Sospecha |
+|-------|-------|----------|
+| `data.mariadb.host` | 172.18.0.2 | Host interno Docker, accedido desde contenedor comprometido |
+| `data.mariadb.user` | root → TCFD → labadmin | Escalada progresiva de permisos |
+| `data.mariadb.query` | SELECT user FROM mysql.user | Enumeración estándar post-compromiso |
+| `data.mariadb.database` | corporate_assets | Base con datos sensibles |
+| Progresión temporal | 22:13 → 22:14 → 22:15 → 22:19 → 22:23 → 22:25 → 22:26 | Ataque sistemático, no accidental |
+| `rule.groups` | mariadb_specific, sql_query, enumeration, credential_access, exfiltration | Múltiples categorías de riesgo |
+
+<br>
+
+### Conclusión L2
+
+✅ **Verdadero Positivo Confirmado**
+
+El atacante accedió a MariaDB sin credenciales válidas inicialmente, pero logró 
+conectarse con TCFD. Luego escaló a labadmin y extrajo la tabla de credenciales 
+de toda la infraestructura. La progresión es clara: reconocimiento → acceso → 
+enumeración → exfiltración. Las credenciales obtenidas (administrador, webadmin, 
+svc_backup) alimentaron la siguiente fase de lateral movement.
+
+
+- ## [🎫 Tickets - Fuerza bruta RDP contra SERV-LAB con bloqueo automático de IP) ](https://github.com/Lucasjavier708/Purple-Team-Detection-Lab/blob/main/Docker%20Intrusion%20%26%20SOC%20Response%3A%20API%2C%20MariaDB%20%2CLateral%20Movement%20and%20Active%20Response(AI)/TICKETS.md) 
+
+<br>
+
+Con las credenciales de administrador obtenidas de MariaDB, el atacante intentó
+acceder a Windows Server (SERV-LAB) via RDP en 192.168.3.10. La alerta 100503
+detectó un patrón de fuerza bruta: 7 intentos fallidos de autenticación contra
+la cuenta Administrador provenientes de 192.168.3.163 (Kali Linux) en apenas
+14 segundos. Cada intento generó un Event ID 4625 (Logon Failure) registrado por Windows
+Security Auditing (100603 — 60122). El subestado 0xC000006A indicaba que
+el atacante ya conocía que la cuenta existía, confirmando que usaba información
+extraída de la base de datos anterior.
+
+Antes de que el atacante pudiera continuar, Wazuh ejecutó automáticamente un
+Active Response (657) bloqueando la IP atacante mediante netsh.exe, agregando
+una regla de firewall que denegó todo tráfico desde 192.168.3.163 hacia SERV-LAB.
+El ataque fue contenido.
+
+
+**Alerta 100503 (Detección de fuerza bruta)**
+```json
+{"timestamp":"2026-09-28T22:28:22.683+0000","rule":{"level":12,"description":"Windows RDP - Fuerza bruta detectada - Bloqueo de IP","id":"100503","mitre":{"id":["T1110","T1110.001"],"tactic":["Credential Access"]}},"agent":{"name":"SERV-LAB","ip":"192.168.3.10"},"data":{"win":{"eventdata":{"targetUserName":"Administrador","ipAddress":"192.168.3.163","workstationName":"kali","logonType":"3","authenticationPackageName":"NTLM"}}}}
+```
+
+**Alerta 60122 (Logon Failure — x7 intentos)**
+```json
+2026-09-28T19:28:24 | EventID: 4625 | targetUserName: Administrador | ipAddress: 192.168.3.163 | status: 0xc000006d | subStatus: 0xc000006a | Intento 1/7
+2026-09-28T19:28:22 | EventID: 4625 | targetUserName: Administrador | ipAddress: 192.168.3.163 | status: 0xc000006d | subStatus: 0xc000006a | Intento 2/7
+[... 5 intentos más en 14 segundos ...]
+2026-09-28T19:28:14 | EventID: 4625 | targetUserName: Administrador | ipAddress: 192.168.3.163 | status: 0xc000006d | subStatus: 0xc000006a | Intento 7/7
+```
+
+**Alerta 657 (Active Response ejecutado)**
+```json
+{"version":1,"origin":{"name":"node01","module":"wazuh-execd"},"command":"add","parameters":{"alert":{"rule":{"id":"100503","description":"Windows RDP - Fuerza bruta detectada - Bloqueo de IP"}},"program":"active-response/bin/netsh.exe","extra_args":["firewall","rule","add","name=BlockIP_192.168.3.163","dir=in","action=block","remoteip=192.168.3.163"]}}
+```
+
+<br> 
+
+<div>
+  <img width="2560" height="2690" alt="100503" src="https://github.com/user-attachments/assets/ac664e10-9805-4f20-9f7c-deea7cdb2ae7" />
+
+ </div>
+
+<br> 
+
+<div>
+ <img width="2560" height="2527" alt="60122" src="https://github.com/user-attachments/assets/319b6bc8-55db-4961-b376-89761f616320" />
+
+</div>
+
+<br>
+
+<div>
+<img width="2560" height="3892" alt="Active Response " src="https://github.com/user-attachments/assets/959af072-cf7a-4d4e-b96e-322a3ccadf71" />
+
+</div>
+
+<br>
+
+| Campo | Valor | Sospecha |
+|---|---|---|
+| `data.win.eventdata.targetUserName` | Administrador | Cuenta extraída de MariaDB en fase anterior |
+| `data.win.eventdata.ipAddress` | 192.168.3.163 | Misma Kali del ataque inicial |
+| `data.win.eventdata.logonType` | 3 (Network) | RDP es logon type 3 |
+| `data.win.eventdata.authenticationPackageName` | NTLM | Credenciales válidas intentadas |
+| `data.win.eventdata.status` | 0xC000006D | "Unknown user or bad password" |
+| `data.win.eventdata.subStatus` | 0xC000006A | Usuario existe, contraseña incorrecta |
+| Ritmo de intentos | 7 en 14 segundos | Automatizado (Hydra/similar), no humano |
+| Respuesta automática | `netsh.exe` bloqueó IP en tiempo real | Active Response funcionó |
+
+<br>
+
+✅ Verdadero Positivo Confirmado + Contención Exitosa
+
+El atacante usó las credenciales de administrador extraídas de MariaDB para fuerza
+bruta contra RDP. Wazuh detectó 7 intentos fallidos en 14 segundos y ejecutó
+automáticamente una regla de firewall bloqueando la IP 192.168.3.163. El ataque
+fue contenido antes de lograr acceso. La respuesta automática funcionó, salvando
+a Windows Server de compromiso.
+
+<br> 
+
+##  Análisis de la causa 
+
+Este incidente fue posible por una cascada de vulnerabilidades técnicas y 
+configuraciones débiles. Cada una permitió al atacante progresar a la siguiente 
+fase. Remediando estas causas raíz, el incidente habría sido detenido en 
+múltiples puntos.
+
+---
+
+### Causa Raíz #1: Falta de Sanitización en `/check-host` (TICKET IRSOC-3)
+
+**Vulnerabilidad:** Input Validation — CWE-78 (OS Command Injection)
+
+**Descripción:**
+El endpoint `/check-host` acepta un parámetro `hostname` sin validar ni 
+sanitizar. El atacante inyectó comandos del sistema usando el separador `;`, 
+permitiendo ejecución arbitraria en el servidor Ubuntu.
+
+```python
+# VULNERABLE
+curl -X POST http://192.168.3.100:8080/check-host \
+  -H "Content-Type: application/json" \
+  -d '{"hostname":"8.8.8.8; whoami"}'
+# Resultado: ping + whoami ejecutados
+```
+
+**Por qué fue posible:**
+- No hay validación de formato de IP
+- No hay escapado de caracteres especiales (`;`, `|`, `&`, etc.)
+- El parámetro se pasa directamente a `ping()` sin sanitización
+
+**Impacto:** Acceso inicial confirmado. El atacante obtuvo RCE.
+
+**Remediación:**
+```python
+# SEGURO
+import re
+import ipaddress
+
+def validate_hostname(hostname):
+    # Solo aceptar IPs o dominios válidos
+    try:
+        ipaddress.ip_address(hostname)
+        return True
+    except ValueError:
+        if re.match(r'^[a-zA-Z0-9.-]+$', hostname):
+            return True
+    return False
+
+# Usar subprocess con lista, no shell
+import subprocess
+result = subprocess.run(['ping', '-c', '1', hostname], 
+                       capture_output=True, timeout=5)
+```
+
+---
+
+### Causa Raíz #2: MariaDB — Cuenta Anónima Habilitada (TICKET IRSOC-4)
+
+**Vulnerabilidad:** Configuración Débil — Credenciales Faltantes
+
+**Descripción:**
+La base de datos MariaDB tenía habilitada una cuenta anónima (`''@'%'`) que 
+permitía conectarse sin contraseña. Aunque con permisos limitados, esta cuenta 
+dio acceso inicial para enumeración.
+
+```sql
+-- Vulnerable
+SELECT user FROM mysql.user;
+-- Resultado: usuario vacío ('') encontrado, sin contraseña
+```
+
+**Por qué fue posible:**
+- Instalación default de MariaDB sin hardening
+- No se eliminó la cuenta anónima durante deployment
+- La cuenta anónima tenía acceso a `mysql.user` table
+
+**Impacto:** Enumeración de usuarios MariaDB. Identificó cuenta TCFD débil.
+
+**Remediación:**
+```sql
+-- Eliminar cuentas anónimas
+DELETE FROM mysql.user WHERE User='';
+DELETE FROM mysql.user WHERE User='' AND Host='localhost';
+
+-- Eliminar acceso remoto root
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1');
+
+FLUSH PRIVILEGES;
+```
+
+---
+
+### Causa Raíz #3: Credenciales Débiles en MariaDB (TICKET IRSOC-4)
+
+**Vulnerabilidad:** Weak Credentials — Contraseña Reutilizable
+
+**Descripción:**
+La cuenta `labadmin` usaba la contraseña `password123`, que fue crackeada en 
+segundos con John the Ripper contra el hash SHA1 extraído.
+
+```bash
+# Hash capturado
+labadmin:*A0F874BC7F54EE086FCE60A37CE7887D8B31086B
+
+# Cracking en segundos
+john hash_labadmin.txt --wordlist=rockyou.txt --format=mysql-sha1
+# Resultado: password123 (en diccionario)
+```
+
+**Por qué fue posible:**
+- Contraseña en diccionario estándar (rockyou.txt)
+- Hash MySQL SHA1 es predecible y fácil de crackear
+- No hay política de complejidad de contraseñas
+- No hay rate limiting en intentos de conexión
+
+**Impacto:** Acceso a nivel de aplicación a todas las bases de datos. 
+Exfiltración de tabla `credentials`.
+
+**Remediación:**
+```sql
+-- Política de contraseña fuerte
+ALTER USER 'labadmin'@'%' 
+IDENTIFIED BY 'Th1sIsA$tr0ngP@ssw0rd!2026';
+
+-- Usar SHA256 en lugar de SHA1
+SET GLOBAL default_password_algorithm='sha256_password';
+
+-- Rate limiting en intentos fallidos
+SET GLOBAL max_connect_errors = 3;
+```
+
+---
+
+### Causa Raíz #4: Tabla `credentials` Accesible (TICKET IRSOC-4)
+
+**Vulnerabilidad:** Falta de Segmentación de Datos — Privilegios Excesivos
+
+**Descripción:**
+La tabla `corporate_assets.credentials` almacenaba credenciales de múltiples 
+sistemas (Windows, Backup, Finance) y era completamente accesible para 
+`labadmin`. No había encriptación ni acceso granular.
+
+```sql
+-- Vulnerable
+SELECT * FROM corporate_assets.credentials;
+-- Resultado: 6 credenciales en texto plano expuestas
+```
+
+**Por qué fue posible:**
+- Datos sensibles sin encriptación en reposo
+- Privilegios no granulares (labadmin = SELECT * en todo)
+- No hay auditoría de acceso a esta tabla específica
+- No hay data masking
+
+**Impacto:** Obtención de credenciales de administrador Windows. 
+Preparó lateral movement.
+
+**Remediación:**
+```sql
+-- Crear usuario de solo lectura con privilegios limitados
+CREATE USER 'app_read'@'%' IDENTIFIED BY 'AppP@ss2026';
+GRANT SELECT (id, endpoint_name, ip_address) 
+ON corporate_assets.endpoints 
+TO 'app_read'@'%';
+
+-- NO otorgar SELECT en tabla credentials
+-- Encriptar datos sensibles
+ALTER TABLE credentials 
+ADD COLUMN password_encrypted VARBINARY(255);
+
+UPDATE credentials 
+SET password_encrypted = AES_ENCRYPT(password, 'encryption_key');
+
+-- Auditar acceso
+SET GLOBAL audit_log_events = 'CONNECT, QUERY_DDL, QUERY_DML';
+```
+
+---
+
+### Causa Raíz #5: RDP Expuesto sin MFA (TICKET IRSOC-5)
+
+**Vulnerabilidad:** Acceso Remoto sin Autenticación Multifactor
+
+**Descripción:**
+Windows Server 192.168.3.10 tenía RDP expuesto (puerto 3389) con solo contraseña, 
+sin MFA. El atacante usó credenciales extraídas para fuerza bruta sin limite de 
+intentos.
+
+```bash
+# Vulnerable
+hydra -l Administrador -P diccionario.txt rdp://192.168.3.10 -t 1
+# 7 intentos en 14 segundos sin bloqueo
+```
+
+**Por qué fue posible:**
+- RDP accesible desde red de laboratorio
+- Solo autenticación NTLM (no MFA)
+- Sin account lockout policy en Windows
+- Sin Network Level Authentication (NLA) configurado
+
+**Impacto:** Intento de lateral movement. Contenido por Active Response, 
+pero sin respuesta automática habría tenido acceso.
+
+**Remediación:**
+```powershell
+# Implementar MFA con Azure AD / RADIUS
+# Configurar NLA
+reg add "HKLM\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" `
+  /v SecurityLayer /t REG_DWORD /d 2
+
+# Account lockout policy
+net accounts /lockoutthreshold:3
+net accounts /lockoutduration:30
+
+# Deshabilitar RDP en puerto default (exponer solo por VPN)
+# Usar Bastion Host o jump box
+```
+
+---
+
+### Tabla Resumen — Vulnerabilidades por Fase
+
+| Fase | Vulnerabilidad | CWE | CVSS | Remediado por |
+|------|-----------------|-----|------|----------------|
+| 1 (RCE) | OS Command Injection | CWE-78 | 9.8 | Input validation + subprocess |
+| 2 (DB) | Weak Credentials + Anon Account | CWE-521, CWE-798 | 8.1 | Password policy + eliminar anon |
+| 2 (DB) | Sensitive Data Exposure | CWE-200 | 7.5 | Encriptación + access control |
+| 3 (RDP) | Missing MFA | CWE-304 | 7.2 | MFA + NLA + Account lockout |
+
+---
+
+<br> 
+
+##  Medidas de Contención
+
+### El Daño Real
+
+Ubuntu Server fue comprometida. El atacante tuvo RCE confirmada. Eso no se puede 
+"detener un contenedor" y listo. Hay que asumir que hizo cosas malas.
+
+Windows Server fue atacada pero NO comprometida. Active Response lo frenó antes.
+
+---
+
+### En Windows (ÉXITO) — Active Response funcionó
+
+Wazuh ejecutó automáticamente esto cuando detectó 7 intentos RDP en 14 segundos:
+
+```powershell
+netsh advfirewall firewall add rule \
+  name="BlockIP_192.168.3.163" \
+  dir=in \
+  action=block \
+  remoteip=192.168.3.163
+```
+
+Validé que la regla está activa:
+
+```powershell
+netsh advfirewall firewall show rule name="WAZUH ACTIVE RESPONSE BLOCKED IP"
+```
+
+### [Captura: Firewall rule bloqueando 192.168.3.163]
+
+Test de antes/después:
+
+**Antes (19:27):** Puerto 3389 abierto → Nmap dice `open`  
+**Después (19:28):** Puerto 3389 bloqueado → Nmap dice `filtered`
+
+Sin esto, el atacante accedía a Windows. Gracias a Wazuh, no pasó.
+
+---
+
+### En Ubuntu (PROBLEMA) — Comprometida, hay que actuar
+
+Ubuntu fue vulnerada. El atacante tuvo shell en el contenedor Docker. No sé qué más 
+hizo allá, así que tuve que asumir lo peor.
+
+**Lo que hice:**
+
+**1. Aislar Ubuntu de la red**
+
+No puedo dejar una máquina comprometida conectada. La desconecté:
+
+```bash
+# Detener interfaces de red (excepto localhost)
+sudo ip link set eth0 down
+sudo ip link set docker0 down
+
+# O más directo: apagar el servidor
+sudo shutdown -h now
+```
+
+La idea: Si el atacante dejó un backdoor o reverse shell, no puede conectar a home base.
+
+**2. Revisar qué comandos ejecutó ANTES de desconectarla**
+
+```bash
+# Ver historia de bash (si no la limpió)
+history
+cat ~/.bash_history
+
+# Ver comandos recientes
+journalctl -u systemd-user-sessions -n 50
+
+# Ver procesos activos (buscando shells raras)
+ps auxww | grep -E "nc|bash|python|perl|sh"
+netstat -tulpn | grep ESTABLISHED
+```
+
+Los logs mostraban solo:
+- ping 8.8.8.8
+- cat /proc/net/fib_trie
+- ping 172.18.0.3
+- Queries a MariaDB
+
+No vi conexiones reverse shell ni nada descargado. Pero no confío. Voy a asumir 
+que pudo haber dejado algo.
+
+**3. Cambié contraseña de administrador en Windows** 
+
+Esas credenciales fueron exfiltradas de MariaDB:
+
+```powershell
+net user Administrador NewSecureP@ss2026!
+```
+
+No pueden servir aunque el atacante las tenga.
+
+**4. Revisé qué datos sacó de MariaDB**
+
+```sql
+-- Con acceso de SOC, miro logs de MariaDB
+SELECT * FROM audit_log 
+WHERE timestamp > '2026-09-28 19:14:00'
+AND query LIKE 'SELECT%credentials%';
+```
+
+Confirmé que extrajo:
+- administrador / WinLab-2026-03 ✗ COMPROMETIDA
+- webadmin / WebLab-2026-02 ✗ COMPROMETIDA
+- svc_backup / BackupLab-2026-04 ✗ COMPROMETIDA
+- 3 más ✗ COMPROMETIDAS
+
+Todas hay que rotarlas.
+
+---
+
+### Lo que debería haber pasado — Mejores prácticas
+
+**Idealmente en Ubuntu comprometida:**
+
+```bash
+# 1. Aislarlo INMEDIATAMENTE
+sudo iptables -I INPUT -j DROP
+sudo iptables -I OUTPUT -j DROP
+
+# 2. Hacer forensics ANTES de apagar
+find / -type f -newermt '2026-09-28 19:00:00' ! -newermt '2026-09-28 20:00:00' 
+# → Buscar archivos nuevos/modificados
+
+# 3. Revisar crontabs ocultos
+crontab -l
+for user in $(cat /etc/passwd | cut -d: -f1); do crontab -u $user -l 2>/dev/null; done
+
+# 4. Revisar sudoers por backdoors
+sudo cat /etc/sudoers
+sudo cat /etc/sudoers.d/*
+
+# 5. Buscar shells reversos
+netstat -tulpn | grep LISTEN
+lsof -i -P -n | grep LISTEN
+
+# 6. Hacer IMAGEN FORENSE antes de modificar nada
+dd if=/dev/sda of=/forensics/ubuntu-compromised.img
+```
+
+Pero en un lab, lo que hice fue suficiente: aislar + revisar logs.
+
+---
+
+### Medidas futuras para Ubuntu comprometida
+
+Si vuelvo a pasar esto, hay que:
+
+1. **Desconectar inmediatamente** (vlan diferente o apagar)
+2. **Hacer forensics EN VIVO** (antes de shutdown)
+3. **Clonar disco** para análisis posterior
+4. **Rebuild** la máquina desde cero
+5. **Parchear la API** ANTES de reactivar
+6. **Aireo** mínimo 1 mes sin conectarla a producción
+
+---
+
+### Resumen
+
+| Sistema | Estado | Acción | Éxito |
+|---------|--------|--------|-------|
+| Windows | Atacada | Bloqueada por AR | ✅ CONTENIDA |
+| Ubuntu | Comprometida | Aislada + forensics | ⚠️ CONTROLADA |
+| MariaDB | Exfiltrada | Credenciales rotadas | ⚠️ MITIGADA |
+
+La buena noticia: Windows no cayó. Active Response funcionó.  
+La mala: Ubuntu necesita rebuild completo.
+
+---
+
+<br> 
+
+##  Revisión Forense — IOCs (Indicators of Compromise)
+
+Los siguientes Indicadores de Compromiso fueron identificados durante el análisis 
+del incidente. Estos pueden ser utilizados para threat hunting en otros segmentos 
+de la red y para actualizar sistemas de detección.
+
+---
+
+### IOCs — Tabla Consolidada
+
+#### 🔴 IPs Comprometidas / Maliciosas
+
+| IP | Rol | Primera Mención | Última Actividad | Estado |
+|----|-----|-----------------|------------------|--------|
+| 192.168.3.163 | Atacante (Kali Linux) | 19:06:57 (100310) | 19:28:22 (100503) | **BLOQUEADA** en firewall |
+| 192.168.3.100 | Ubuntu Server víctima | 19:06:57 (API) | 19:26:28 (últimas queries) | Comprometida |
+| 172.18.0.2 | Contenedor API (Docker) | 19:06:57 | 19:26:28 | Comprometida |
+| 172.18.0.3 | Contenedor MariaDB (Docker) | 19:14:29 | 19:26:28 | Exfiltrada |
+| 192.168.3.10 | Windows Server (SERV-LAB) | 19:28:14 (intentos RDP) | 19:28:22 | Atacado pero no comprometido |
+
+---
+
+#### 👤 Usuarios Comprometidos / Utilizados
+
+| Usuario | Sistema | Contexto | Credencial | Estado |
+|---------|---------|----------|-----------|--------|
+| root | MariaDB | Enumeración inicial (100402) | Sin contraseña (anónimo) | Cuenta vulnerable |
+| TCFD | MariaDB | Acceso inicial (100403) | Sin contraseña | Cuenta débil |
+| labadmin | MariaDB | Escalada de privilegios (100405-406) | password123 | **COMPROMETIDA** |
+| Administrador | Windows | Intento fuerza bruta (100503) | WinLab-2026-03 | Intento fallido |
+| administrador | (de credentials DB) | Exfiltrado (100406) | WinLab-2026-03 | **EXPUESTO** |
+
+---
+
+#### 🔐 Hashes y Credenciales Extraídas
+
+| Tipo | Valor | Usuario | Sistema | Cracking Time |
+|------|-------|---------|---------|----------------|
+| SHA1 (MySQL) | `*A0F874BC7F54EE086FCE60A37CE7887D8B31086B` | labadmin | MariaDB | ~30 segundos |
+| Plaintext | password123 | labadmin | Crackeado de hash | — |
+| Plaintext | WinLab-2026-03 | administrador | Exfiltrado de DB | — |
+| Plaintext | WebLab-2026-02 | webadmin | Exfiltrado de DB | — |
+| Plaintext | BackupLab-2026-04 | svc_backup | Exfiltrado de DB | — |
+| Plaintext | BackupLab-2026-05 | backup_operator | Exfiltrado de DB | — |
+| Plaintext | FinanceLab-2026-06 | fin_user | Exfiltrado de DB | — |
+
+---
+
+#### 🌐 Endpoints y Puertos
+
+| Protocolo | IP:Puerto | Servicio | Vulnerability | Estado |
+|-----------|-----------|----------|----------------|--------|
+| HTTP | 192.168.3.100:8080 | API Infrastructure | OS Command Injection | Vulnerable |
+| TCP | 172.18.0.3:3306 | MariaDB | Weak Auth + Data Exposure | Comprometido |
+| TCP | 192.168.3.10:3389 | Windows RDP | Missing MFA | Atacado |
+| TCP | 192.168.3.100:22 | SSH (Ubuntu) | No evaluado | Posible acceso |
+
+---
+
+#### 📝 Comandos/Queries Ejecutadas por Atacante
+
+| Comando | Contexto | Alerta | Propósito |
+|---------|----------|--------|-----------|
+| `8.8.8.8; whoami` | /check-host | 100310 | Confirmar ejecución remota |
+| `127.0.0.1; cat /proc/net/fib_trie` | /check-host | 100311 | Reconocer red interna Docker |
+| `127.0.0.1; ping -c 1 172.18.0.3` | /check-host | 100312 | Descubrir host MariaDB |
+| `SELECT user FROM mysql.user` | MariaDB | 100402 | Enumerar usuarios DB |
+| `SELECT 1` | MariaDB (TCFD) | 100403 | Validar acceso |
+| `SELECT CURRENT_USER()` | MariaDB | 100404 | Identificar usuario actual |
+| `SHOW DATABASES` | MariaDB | 100405a | Listar bases disponibles |
+| `SHOW TABLES` (corporate_assets) | MariaDB | 100405b | Enumerar tablas sensibles |
+| `SELECT * FROM endpoints` | MariaDB | 100405c | Listar infraestructura |
+| `SELECT * FROM credentials` | MariaDB | 100406 | Exfiltrar credenciales |
+
+---
+
+#### 📦 Bases de Datos y Tablas Afectadas
+
+| Base de Datos | Tabla | Registros Expuestos | Datos Comprometidos |
+|---------------|-------|-------------------|-------------------|
+| corporate_assets | endpoints | 3 | IPs, puertos, estados de sistemas |
+| corporate_assets | credentials | 6 | Usuarios y contraseñas (plaintext) |
+| mysql | user | * | Hashes, permisos, hosts |
+
+**Registros de `credentials` exfiltrados:**
+
+- Administrador / WinLab-2026-03
+- webadmin / WebLab-2026-02
+- svc_backup / BackupLab-2026-04
+- backup_operator / BackupLab-2026-05
+- fin_user / FinanceLab-2026-06
+- dbadmin / DBLab-2026-01
+
+<br> 
+
+
+---
+
+#### 🔗 Archivos y Procesos Maliciosos
+
+| Archivo/Proceso | Localización | Tipo | Acción |
+|-----------------|--------------|------|--------|
+| infrastructure-status-api | 192.168.3.100:8080 | API vulnerable | Punto de entrada |
+| 4ca86714d046 | 172.18.0.2 (Docker) | Container ID | Acceso comprometido |
+| 4ca86714d046 | 172.18.0.3 (Docker) | Container ID | Datos exfiltrados |
+| netsh.exe | SERV-LAB (active-response) | Respuesta automática | Bloqueó IP atacante |
+
+---
+
+#### 🎯 MITRE ATT&CK Framework Mapeado
+
+| Técnica | ID | Táctica | Alerta | Descripción |
+|---------|----|---------|---------|----|
+| Unix Shell | T1059.004 | Execution | 100310 | Command injection en /check-host |
+| System Network Configuration Discovery | T1016 | Discovery | 100311 | cat /proc/net/fib_trie |
+| Remote System Discovery | T1018 | Discovery | 100312 | Ping a host interno |
+| Account Discovery | T1087 | Discovery | 100402 | SELECT user FROM mysql.user |
+| Valid Accounts | T1078 | Initial Access, Persistence | 100403 | Autenticación TCFD/labadmin |
+| System Owner/User Discovery | T1033 | Discovery | 100404 | SELECT CURRENT_USER() |
+| Data from Information Repositories | T1213 | Collection | 100405, 100406 | SELECT * FROM endpoints/credentials |
+| Brute Force | T1110 | Credential Access | 100503 | Fuerza bruta RDP |
+| Password Guessing | T1110.001 | Credential Access | 100503 | Hidra contra Administrador |
+
+---
+
+#### 🔔 Indicadores Detectados por Wazuh
+
+| Tipo de IOC | Valor | Detectado por | Acción |
+|-------------|-------|---------------|--------|
+| IP Maliciosa | 192.168.3.163 | 100503 + 657 | Bloqueada en firewall |
+| Hash (Salted SHA1) | A0F874BC7F54EE086FCE60A37CE7887D8B31086B | Manual (John) | Contraseña crackeada |
+| User Agent | hydra/[version] | Tráfico RDP | Identificado atacante |
+| Command Pattern | `; whoami` | Regex en API logs | Bloquear separador ; |
+| Query Pattern | `SELECT * FROM credentials` | MariaDB Audit | Auditar acceso datos |
+| Event ID | 4625 (x7) | Windows Security | Fuerza bruta detectada |
+
+-----
+
+<br> 
+
+## 🔒 Cierre del Caso — Recomendaciones de Remediación
+
+---
+
+### Qué pasó en resumen
+
+El ataque duró 22 minutos. Detectamos 3 fases, paramos 2, y Wazuh bloqueó la 3era 
+automáticamente. Windows no se comprometió. Ubuntu sí. MariaDB fue exfiltrada.
+
+**Lo bueno:** Active Response funcionó en 2 segundos y salvó Windows.  
+**Lo malo:** Ubuntu necesita rebuild completo.
+
+---
+
+### Acciones URGENTES (hoy-7 días)
+
+**1. Rotar TODAS las credenciales que sacaron de MariaDB**
+
+Estas quedaron comprometidas:
+- administrador / WinLab-2026-03
+- webadmin / WebLab-2026-02
+- svc_backup / BackupLab-2026-04
+- backup_operator / BackupLab-2026-05
+- fin_user / FinanceLab-2026-06
+- dbadmin / DBLab-2026-01
+
+Hay que cambiarlas hoy. Sin excusas.
+
+**2. Parchear la API — ya**
+
+La API tiene `shell=True` sin validación. Eso es RCE garantizada. 
+
+Código vulnerable:
+```python
+cmd = f"ping -c 1 {hostname}"
+subprocess.run(cmd, shell=True)  # Si hostname = "8.8.8.8; whoami" → pum
+```
+
+Tiene que ser:
+```python
+# Validar
+if not re.match(r'^[a-zA-Z0-9.-]+$', hostname):
+    raise HTTPException(status_code=400)
+
+# Sin shell=True
+subprocess.run(['ping', '-c', '1', hostname])
+```
+
+Dev Team: 48 horas máximo. No reactivar sin esto.
+
+**3. Limpiar MariaDB — eliminar cuentas anónimas**
+
+```sql
+DELETE FROM mysql.user WHERE User='';
+FLUSH PRIVILEGES;
+```
+
+**4. Habilitar MFA en Windows**
+
+Aunque cambié la contraseña de administrador, hay que agregar MFA para que no 
+se repita. Si es rápido: NLA (Network Level Authentication).
+
+```powershell
+reg add "HKLM\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" `
+  /v SecurityLayer /t REG_DWORD /d 2 /f
+```
+
+**5. Revisar logs**
+
+Necesito confirmar que el atacante no dejó backdoors. Ver:
+- `/var/log/api.log` en Ubuntu (qué comandos ejecutó)
+- Event ID 4625 en Windows (intentos fallidos RDP)
+- Audit logs de MariaDB (qué queries hizo)
+
+---
+
+### Acciones a mediano plazo (próximo mes)
+
+**A. Hardening de MariaDB**
+
+Cambiar contraseña de root, eliminar acceso remoto, crear usuario read-only para la 
+app, encriptar la tabla de credenciales, habilitar auditoría. Todo en SQL directo.
+
+**B. Segmentar la red**
+
+Ahora todo está en la misma red. Si uno cae, todo cae. Hay que:
+- DMZ: Solo la API (Ubuntu)
+- Internal: MariaDB aislada
+- Management: Windows separada
+
+Con firewall en el medio bloqueando lateral movement.
+
+**C. Implementar WAF (Web Application Firewall)**
+
+Poner ModSecurity + Nginx enfrente de la API para bloquear inyecciones automáticamente.
+
+**D. Encriptación en tránsito**
+
+HTTPS en la API, TLS en MariaDB, TLS 1.2+ en RDP. Sin excusas.
+
+**E. Vault de Secretos**
+
+En lugar de credenciales en tabla de DB, usar HashiCorp Vault. Rotación automática cada 30 días.
+
+**F. Parchado automático**
+
+Linux: Unattended-upgrades (security patches automáticos)  
+Windows: WSUS con aprobación automática de patches críticos
+
+**G. Threat Hunting constante**
+
+Cada semana buscar patterns de injection en los logs. Cada día revisar 
+queries sospechosas a MariaDB. Cada minuto alertas en Wazuh si hay 5+ 
+intentos fallidos de login.
+
+---
+
+### Métricas — Antes vs. Después
+
+| Métrica | Antes | Después |
+|---------|-------|---------|
+| Cuentas sin MFA | 100% | 0% |
+| Vulnerabilidades críticas sin parchear | 5 | 0 |
+| Datos sensibles encriptados | 0% | 100% |
+| Tiempo de respuesta (MTTR) | ~30 min | < 5 min |
+| Tiempo de investigación (MTTI) | ~60 min | < 15 min |
+| Segmentación de red | NO | SÍ |
+
+El riesgo general baja de 7.9 (ALTO) a 1.6 (BAJO).
+
+---
+
+### Lo importante
+
+**Sin implementar las acciones URGENTES en 7 días, el atacante (o alguien igual) 
+vuelve a entrar por el mismo lado en 48-72 horas.**
+
+No es dramatizar. Es el mismo vector. Ya lo probó. Ya sabe que funciona.
+
+**CASO CERRADO**
+
+```
+Analista: Lucas Pizarro
+Fecha: 2026-10-04
+Estado: Resuelto pero requiere remediación inmediata
+```
+
+### Plan de Acción Inmediato (0-7 días)
+
+#### CRÍTICO — Ejecutar YA
+
+**1. Rotar Todas las Credenciales Exfiltradas**
