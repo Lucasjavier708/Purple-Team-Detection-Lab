@@ -38,6 +38,94 @@ El laboratorio SOC cuenta con dos redes segmentadas, separando el entorno de ata
 <img width="1800" height="803" alt="Diagrama Caso2#" src="https://github.com/user-attachments/assets/1df88b4b-85ba-48ab-9ae4-a9fb0cfd5a39" />
 </div>
 
+<br>
+<br>
+ El laboratorio está construido sobre tres pilares técnicos:
+
+Infrastructure Status API — La puerta de entrada. Una API FastAPI intencionalmente vulnerable a inyección de comandos.
+app.py con CWE-78 — El corazón de la vulnerabilidad. Explicaré exactamente dónde está el fallo y cómo se explota.
+Active Response Script — El mecanismo de contención. Cómo Wazuh reacciona automáticamente para bloquear movimiento lateral.
+
+
+1️⃣ Infrastructure Status API — Diseño Intencional
+
+La API está desarrollada en FastAPI, un framework moderno de Python que permite crear endpoints RESTful de forma sencilla. La propuse específicamente porque:
+
+Es fácil de contenerizar (Docker)
+Simula una aplicación real de "chequeo de infraestructura"
+Es lo suficientemente simple para que sea obvio dónde está la vulnerabilidad (para fines educativos)
+Integra logging JSON nativo, perfecto para que Wazuh lo procese
+
+| Componente | Versión | Rol |
+| :--- | :--- | :--- |
+| **Framework** | FastAPI 0.104.1 | Aplicación web |
+| **Servidor ASGI** | Uvicorn 0.24.0 | Ejecutor de la aplicación |
+| **Validador de datos** | Pydantic 2.5.0 | Modelos de entrada/salida |
+| **Python** | 3.11 | Runtime |
+| **Contenedor** | Docker 3.8+ | Entorno aislado |
+| **Puerto** | 8080 | Exposición del servicio | 
+
+Ubicación en el laboratorio:
+
+La API corre dentro de un contenedor Docker llamado infrastructure-status-api en la red lab-network (172.18.0.0/16). Esto permite que sea accesible desde la máquina atacante (Kali, 192.168.3.163) pero también que se comunique internamente con MariaDB (172.18.0.3).
+
+# docker-compose.yml 
+
+```json
+services:
+  infrastructure-api:
+    build: .
+    container_name: infrastructure-status-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/home/ub-serv/api-infrastructure-status/logs
+    networks:
+      - lab-network
+```
+
+2️⃣ app.py — Disección de la Vulnerabilidad (CWE-78: OS Command Injection)
+
+Ahora viene lo importante. Aquí está el código vulnerable:
+
+```json
+python
+@app.post("/check-host")
+def check_host(request: HostCheckRequest):
+    """
+    Chequea si un host está accesible mediante ping.
+    VULNERABLE: Command Injection en el parámetro hostname
+    """
+    hostname = request.hostname
+
+    try:
+        # VULNERABILIDAD INTENCIONAL: No sanitiza la entrada
+        # Un atacante puede hacer: hostname="; cat /etc/passwd; echo"
+        cmd = f"ping -c 1 {hostname}"
+
+        result = subprocess.run(
+            cmd,
+            shell=True,              # ⚠️ AQUÍ ESTÁ EL PROBLEMA
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        output = result.stdout + result.stderr
+
+        log_request(
+            "/check-host",
+            {"hostname": hostname},
+            output[:200],
+            "success"
+        )
+
+        if result.returncode == 0:
+            return {"status": "online", "hostname": hostname, "output": output}
+        else:
+            return {"status": "offline", "hostname": hostname, "output": output}
+```
+
 ------
 
 ## Herramientas y Tecnologías
