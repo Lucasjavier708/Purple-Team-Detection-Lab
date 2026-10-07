@@ -42,9 +42,12 @@ El laboratorio SOC cuenta con dos redes segmentadas, separando el entorno de ata
 <br>
  El laboratorio está construido sobre tres pilares técnicos:
 
-Infrastructure Status API — La puerta de entrada. Una API FastAPI intencionalmente vulnerable a inyección de comandos.
-app.py con CWE-78 — El corazón de la vulnerabilidad. Explicaré exactamente dónde está el fallo y cómo se explota.
-Active Response Script — El mecanismo de contención. Cómo Wazuh reacciona automáticamente para bloquear movimiento lateral.
+Infrastructure Status API 
+- La puerta de entrada. Una API FastAPI intencionalmente vulnerable a inyección de comandos.
+app.py con CWE-78 
+- El corazón de la vulnerabilidad. Explicaré exactamente dónde está el fallo y cómo se explota.
+Active Response Script 
+- El mecanismo de contención. Cómo Wazuh reacciona automáticamente para bloquear movimiento lateral.
 
 
 1️⃣ Infrastructure Status API — Diseño Intencional
